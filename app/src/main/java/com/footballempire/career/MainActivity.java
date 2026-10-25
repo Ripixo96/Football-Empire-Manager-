@@ -129,7 +129,8 @@ public class MainActivity extends Activity {
         TextView away=bold(opponent+"\n"+initials(opponent),15); away.setGravity(android.view.Gravity.CENTER); matchup.addView(away,new LinearLayout.LayoutParams(0,-2,1));
         next.addView(matchup); next.addView(button("ROZEGRAJ MECZ   →",this::chooseMatch,true));
         LinearLayout menu=panel(); menu.addView(bold("ZARZĄDZANIE KLUBEM",13));
-        menu.addView(button("👥   Skład i zawodnicy",this::showSquad));\n        menu.addView(button("📊   Tabela ligi",this::showTable));
+        menu.addView(button("👥   Skład i zawodnicy",this::showSquad));
+        menu.addView(button("📊   Tabela ligi",this::showTable));
         menu.addView(button("🛡   Zmień klub",this::chooseClub));
         menu.addView(button("📋   Historia ostatniego meczu",this::showLast));
         menu.addView(button("↻   Nowa kariera (reset)",this::resetCareer));
