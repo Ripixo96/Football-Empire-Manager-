@@ -44,33 +44,74 @@ public class MainActivity extends Activity {
         prefs.edit().putInt("played",played).putInt("wins",wins).putInt("draws",draws).putInt("losses",losses)
             .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).apply();
     }
+    static final int BG = Color.rgb(8,13,25), SURFACE = Color.rgb(18,27,45), SURFACE2 = Color.rgb(25,37,58);
+    static final int MUTED = Color.rgb(157,172,194), LIME = Color.rgb(194,255,82), BORDER = Color.rgb(43,59,82);
+    int dp(float v) { return (int)(v*getResources().getDisplayMetrics().density+0.5f); }
+    android.graphics.drawable.GradientDrawable shape(int color, int stroke, int radius) {
+        android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();
+        d.setColor(color); d.setCornerRadius(dp(radius)); if(stroke!=0)d.setStroke(dp(1),stroke); return d;
+    }
     TextView text(String s, int size) {
         TextView t=new TextView(this); t.setText(s); t.setTextSize(size); t.setTextColor(Color.WHITE);
-        t.setPadding(8,8,8,8); return t;
+        t.setPadding(dp(3),dp(5),dp(3),dp(5)); return t;
     }
-    Button button(String s, Runnable r) {
-        Button b=new Button(this); b.setText(s); b.setAllCaps(false);
-        b.setOnClickListener(v -> r.run()); return b;
+    TextView muted(String s,int size) { TextView t=text(s,size); t.setTextColor(MUTED); return t; }
+    TextView bold(String s,int size) { TextView t=text(s,size); t.setTypeface(Typeface.DEFAULT,Typeface.BOLD); return t; }
+    LinearLayout panel() {
+        LinearLayout p=new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL); p.setPadding(dp(15),dp(13),dp(15),dp(13));
+        p.setBackground(shape(SURFACE,BORDER,17)); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(12); root.addView(p,lp); return p;
+    }
+    Button button(String s, Runnable r) { return button(s,r,false); }
+    Button button(String s, Runnable r, boolean primary) {
+        Button b=new Button(this); b.setText(s); b.setAllCaps(false); b.setTextSize(14); b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        b.setTextColor(primary?Color.rgb(12,22,14):Color.WHITE); b.setMinHeight(dp(50)); b.setPadding(dp(10),dp(7),dp(10),dp(7));
+        b.setBackground(shape(primary?LIME:SURFACE2,primary?LIME:BORDER,13)); b.setOnClickListener(v->r.run());
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.topMargin=dp(4); lp.bottomMargin=dp(4); b.setLayoutParams(lp); return b;
     }
     void base(String title) {
-        root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(20,18,20,18);
-        root.setBackgroundColor(Color.rgb(18,22,32));
-        ScrollView sc=new ScrollView(this); sc.addView(root); setContentView(sc);
-        TextView h=text(title,26); h.setTypeface(null,Typeface.BOLD); root.addView(h);
+        getWindow().setStatusBarColor(BG); getWindow().setNavigationBarColor(BG);
+        root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(17),dp(16),dp(17),dp(24)); root.setBackgroundColor(BG);
+        ScrollView sc=new ScrollView(this); sc.setFillViewport(true); sc.addView(root); setContentView(sc);
+        TextView brand=bold("FE  /  FOOTBALL EMPIRE",12); brand.setTextColor(LIME); root.addView(brand);
+        TextView h=bold(title,27); h.setPadding(0,dp(5),0,0); root.addView(h);
+        TextView sub=muted("ULTIMATE CAREER  •  MANAGER MODE",10); root.addView(sub);
+        View gap=new View(this); root.addView(gap,new LinearLayout.LayoutParams(1,dp(15)));
     }
+    void addStat(LinearLayout row,String value,String label) {
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(9),dp(6),dp(9)); box.setBackground(shape(SURFACE2,0,12));
+        TextView v=bold(value,19); v.setTextColor(LIME); box.addView(v); box.addView(muted(label,10));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1); lp.setMargins(0,0,dp(6),0); row.addView(box,lp);
+    }
+    String initials(String name) {
+        String out=""; for(String part:name.split(" ")) if(!part.isEmpty()&&out.length()<3)out+=part.substring(0,1).toUpperCase(Locale.ROOT); return out;
+    }
+    String money(int n) { return String.format(Locale.US,"%,d",n).replace(',',' ')+" zł"; }
     void showHome() {
-        base("FOOTBALL EMPIRE");
-        root.addView(text("ULTIMATE CAREER  •  WERSJA 0.1",13));
-        root.addView(text("Twój klub: "+club,21));
-        root.addView(text("Bilans ligowy: "+played+" meczów   W: "+wins+"  R: "+draws+"  P: "+losses,16));
-        root.addView(text("Punkty: "+points+"   Bramki: "+goalsFor+":"+goalsAgainst,16));
-        root.addView(text("Budżet: "+String.format(Locale.US,"%,d",cash)+" zł",16));
-        root.addView(button("Rozegraj następny mecz", this::chooseMatch));
-        root.addView(button("Zmień klub", this::chooseClub));
-        root.addView(button("Tabela ligi", this::showTable));
-        root.addView(button("Historia ostatniego meczu", this::showLast));
-        root.addView(button("Nowa kariera (reset)", this::resetCareer));
-        root.addView(text("Prototyp offline: zapis kariery, wspólny silnik wyników i wybór trybu meczu. Baza klubów jest demonstracyjna; rzeczywiste dane wymagają legalnego źródła.",13));
+        base("Centrum kariery");
+        LinearLayout hero=panel();
+        hero.addView(muted("TWÓJ KLUB  /  SEZON 2026–27",10));
+        hero.addView(bold(club,27));
+        hero.addView(muted("Każdy mecz przybliża Cię do mistrzostwa.",12));
+        View spacer=new View(this); hero.addView(spacer,new LinearLayout.LayoutParams(1,dp(12)));
+        TextView budget=bold("BUDŻET TRANSFEROWY     "+money(cash),15); budget.setTextColor(LIME); hero.addView(budget);
+        TextView title=bold("SEZON W LICZBACH",13); root.addView(title);
+        LinearLayout stats=new LinearLayout(this); stats.setOrientation(LinearLayout.HORIZONTAL);
+        addStat(stats,String.valueOf(points),"PUNKTY"); addStat(stats,String.valueOf(played),"MECZE"); addStat(stats,wins+"-"+draws+"-"+losses,"W-R-P");
+        LinearLayout.LayoutParams stlp=new LinearLayout.LayoutParams(-1,-2); stlp.bottomMargin=dp(13); root.addView(stats,stlp);
+        LinearLayout next=panel(); next.addView(muted("NASTĘPNE SPOTKANIE",10));
+        String opponent=clubs[random.nextInt(clubs.length)]; while(opponent.equals(club))opponent=clubs[random.nextInt(clubs.length)];
+        LinearLayout matchup=new LinearLayout(this); matchup.setGravity(android.view.Gravity.CENTER); matchup.setPadding(0,dp(8),0,dp(8));
+        TextView home=bold(initials(club)+"\n"+club,15); home.setGravity(android.view.Gravity.CENTER); matchup.addView(home,new LinearLayout.LayoutParams(0,-2,1));
+        TextView vs=bold("VS",18); vs.setTextColor(MUTED); matchup.addView(vs);
+        TextView away=bold(opponent+"\n"+initials(opponent),15); away.setGravity(android.view.Gravity.CENTER); matchup.addView(away,new LinearLayout.LayoutParams(0,-2,1));
+        next.addView(matchup); next.addView(button("ROZEGRAJ MECZ   →",this::chooseMatch,true));
+        LinearLayout menu=panel(); menu.addView(bold("ZARZĄDZANIE KLUBEM",13));
+        menu.addView(button("📊   Tabela ligi",this::showTable));
+        menu.addView(button("🛡   Zmień klub",this::chooseClub));
+        menu.addView(button("📋   Historia ostatniego meczu",this::showLast));
+        menu.addView(button("↻   Nowa kariera (reset)",this::resetCareer));
+        TextView note=muted("PROTOTYP OFFLINE  •  WERSJA 0.2",10); note.setGravity(android.view.Gravity.CENTER); root.addView(note);
     }
     void chooseClub() {
         base("Wybierz klub");
