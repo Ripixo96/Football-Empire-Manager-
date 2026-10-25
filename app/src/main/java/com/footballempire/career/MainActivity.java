@@ -9,14 +9,23 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.View;
 import android.widget.*;
+import org.json.*;
+import java.net.*;
+import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     LinearLayout root;
     SharedPreferences prefs;
     int played, wins, draws, losses, points, goalsFor, goalsAgainst, cash;
-    String club = "Radom FC";
-    final String[] clubs = {"Radom FC", "Warszawa United", "Kraków Athletic", "Gdańsk City", "Poznań Rovers"};
+    String club = "Real Madrid";
+    String[] clubs = {"Real Madrid", "FC Barcelona", "Manchester City", "Bayern München", "Legia Warszawa"};
+    final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
+    final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    ArrayList<JSONObject> worldLeagues = new ArrayList<>();
+    ArrayList<JSONObject> worldTeams = new ArrayList<>();
+    ArrayList<Player> activeSquad = new ArrayList<>();
     final Random random = new Random();
     Match lastMatch;
 
@@ -62,7 +71,7 @@ public class MainActivity extends Activity {
         played=prefs.getInt("played",0); wins=prefs.getInt("wins",0); draws=prefs.getInt("draws",0);
         losses=prefs.getInt("losses",0); points=prefs.getInt("points",0);
         goalsFor=prefs.getInt("gf",0); goalsAgainst=prefs.getInt("ga",0); cash=prefs.getInt("cash",5000000);
-        club=prefs.getString("club","Radom FC");
+        club=prefs.getString("club","Real Madrid");
     }
     void save() {
         prefs.edit().putInt("played",played).putInt("wins",wins).putInt("draws",draws).putInt("losses",losses)
@@ -160,14 +169,141 @@ public class MainActivity extends Activity {
         LinearLayout tools = panel();
         tools.addView(button("⚽   Skład i zawodnicy",this::showSquad));
         tools.addView(button("🏆   Tabela ligi",this::showTable));
+        tools.addView(button("🌍   Baza światowa: ligi, kluby i kadry",this::showWorldDatabase));
         tools.addView(button("⇄   Zmień klub",this::chooseClub));
         tools.addView(button("▤   Historia ostatniego meczu",this::showLast));
         LinearLayout footer = new LinearLayout(this); footer.setGravity(android.view.Gravity.CENTER);
         TextView note = muted("FOOTBALL EMPIRE  •  CAREER SAVE",9); footer.addView(note); root.addView(footer);
     }
+    String apiKey() { return prefs.getString("goal_api_key","").trim(); }
+    JSONObject apiGet(String path) throws Exception {
+        if(apiKey().isEmpty()) throw new Exception("Najpierw zapisz klucz API.");
+        URL url=new URL("https://api.goal-api.com/v1"+path);
+        HttpURLConnection c=(HttpURLConnection)url.openConnection();
+        c.setRequestMethod("GET"); c.setConnectTimeout(12000); c.setReadTimeout(15000);
+        c.setRequestProperty("Authorization","Bearer "+apiKey());
+        c.setRequestProperty("Accept","application/json");
+        int code=c.getResponseCode();
+        InputStream in=(code>=200&&code<300)?c.getInputStream():c.getErrorStream();
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        byte[] buf=new byte[4096]; int n;
+        while(in!=null&&(n=in.read(buf))>0)out.write(buf,0,n);
+        if(in!=null)in.close(); c.disconnect();
+        String body=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
+        if(code<200||code>=300) throw new Exception("GOAL API HTTP "+code+": "+body);
+        JSONObject json=new JSONObject(body);
+        if(!json.optBoolean("success",true)) throw new Exception(json.optString("message","API zwróciło błąd"));
+        return json;
+    }
+    JSONArray dataArray(JSONObject json) {
+        Object d=json.opt("data");
+        if(d instanceof JSONArray)return (JSONArray)d;
+        if(d instanceof JSONObject) {
+            JSONObject o=(JSONObject)d;
+            JSONArray a=o.optJSONArray("items"); if(a!=null)return a;
+            a=o.optJSONArray("leagues"); if(a!=null)return a;
+            a=o.optJSONArray("teams"); if(a!=null)return a;
+            a=o.optJSONArray("players"); if(a!=null)return a;
+            a=o.optJSONArray("countries"); if(a!=null)return a;
+        }
+        return new JSONArray();
+    }
+    void showWorldDatabase() {
+        base("Baza światowa");
+        LinearLayout api=panel();
+        api.addView(bold("GOAL API  /  GLOBAL FOOTBALL DATA",15));
+        api.addView(muted("Katalog lig, klubów i kadr z wielu krajów. Klucz API jest wymagany i pozostaje zapisany lokalnie na tym urządzeniu.",12));
+        EditText key=new EditText(this); key.setSingleLine(true); key.setTextColor(Color.WHITE);
+        key.setHintTextColor(MUTED); key.setHint("Wklej klucz API GOAL");
+        key.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        key.setText(apiKey()); key.setPadding(dp(10),dp(8),dp(10),dp(8)); key.setBackground(shape(SURFACE2,BORDER,10));
+        api.addView(key,new LinearLayout.LayoutParams(-1,dp(50)));
+        api.addView(button("Zapisz klucz i wczytaj ligi",()->{
+            String k=key.getText().toString().trim();
+            if(k.isEmpty()){toast("Wklej klucz API GOAL.");return;}
+            prefs.edit().putString("goal_api_key",k).apply();
+            loadWorldLeagues();
+        },true));
+        root.addView(button("Wczytaj ligi świata",this::loadWorldLeagues));
+        root.addView(button("Wróć do kariery",this::showHome));
+        root.addView(muted("Utwórz klucz na goal-api.com. Dostępność lig i pól zależy od planu API.",11));
+        if(!worldLeagues.isEmpty()) renderWorldLeagues();
+    }
+    void toast(String msg){Toast.makeText(this,msg,Toast.LENGTH_LONG).show();}
+    void loadWorldLeagues() {
+        if(apiKey().isEmpty()){toast("Najpierw wklej i zapisz klucz API GOAL.");showWorldDatabase();return;}
+        base("Pobieranie lig");
+        root.addView(text("Łączę z GOAL API i pobieram katalog rozgrywek…",15));
+        apiExecutor.execute(()->{
+            try {
+                JSONObject response=apiGet("/leagues?limit=100&offset=0");
+                JSONArray a=dataArray(response); ArrayList<JSONObject> result=new ArrayList<>();
+                for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
+                ui.post(()->{worldLeagues.clear();worldLeagues.addAll(result);showWorldDatabase();toast("Pobrano "+worldLeagues.size()+" lig/rozgrywek.");});
+            } catch(Exception e){ui.post(()->{showWorldDatabase();toast("Nie udało się pobrać lig: "+e.getMessage());});}
+        });
+    }
+    void renderWorldLeagues() {
+        TextView heading=bold("ROZGRYWKI ("+worldLeagues.size()+")",13);heading.setTextColor(LIME);root.addView(heading);
+        for(JSONObject league:worldLeagues) {
+            String name=league.optString("name","Nieznana liga");
+            String country=league.optString("countryName",league.optString("country",""));
+            String id=league.optString("id",league.optString("apiId",""));
+            String label=name+(country.isEmpty()?"":"  •  "+country);
+            root.addView(button(label,()->loadWorldTeams(id,name)));
+        }
+    }
+    void loadWorldTeams(String leagueId,String leagueName) {
+        base("Kluby / "+leagueName);root.addView(text("Pobieram kluby z rozgrywek…",14));
+        apiExecutor.execute(()->{
+            try {
+                JSONObject response=apiGet("/leagues/"+URLEncoder.encode(leagueId,"UTF-8")+"/teams?limit=100&offset=0");
+                JSONArray a=dataArray(response);ArrayList<JSONObject> result=new ArrayList<>();
+                for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
+                ui.post(()->{
+                    worldTeams.clear();worldTeams.addAll(result);base("Kluby / "+leagueName);
+                    root.addView(muted("Znaleziono "+worldTeams.size()+" klubów w tej odpowiedzi API.",12));
+                    for(JSONObject team:worldTeams){
+                        String id=team.optString("id",team.optString("apiId",""));
+                        String name=team.optString("name",team.optString("teamName","Klub"));
+                        String country=team.optString("countryName","");
+                        root.addView(button(name+(country.isEmpty()?"":" • "+country),()->loadWorldTeamSquad(id,name)));
+                    }
+                    root.addView(button("← Wróć do lig",this::showWorldDatabase));
+                });
+            }catch(Exception e){ui.post(()->{base("Błąd bazy");root.addView(text(e.getMessage(),13));root.addView(button("Wróć",this::showWorldDatabase));});}
+        });
+    }
+    void loadWorldTeamSquad(String teamId,String teamName) {
+        base("Kadra / "+teamName);root.addView(text("Pobieram zawodników klubu…",14));
+        apiExecutor.execute(()->{
+            try {
+                JSONObject response=apiGet("/teams/"+URLEncoder.encode(teamId,"UTF-8")+"/players");
+                JSONArray a=dataArray(response);ArrayList<Player> result=new ArrayList<>();
+                for(int i=0;i<a.length();i++){
+                    JSONObject p=a.getJSONObject(i);
+                    String name=p.optString("name",p.optString("playerName","Zawodnik"));
+                    String pos=p.optString("position","Nieznana");
+                    int age=p.optInt("age",0);
+                    if(age==0&&!p.optString("dateOfBirth","").isEmpty()){
+                        try{int year=Integer.parseInt(p.optString("dateOfBirth").substring(0,4));age=Calendar.getInstance().get(Calendar.YEAR)-year;}catch(Exception ignored){}
+                    }
+                    int rating=p.optInt("rating",p.optInt("overall",60));
+                    int potential=p.optInt("potential",Math.min(99,rating+5));
+                    int value=p.optInt("marketValue",p.optInt("market_value",0));
+                    result.add(new Player(name,pos,rating,potential,age,value));
+                }
+                ui.post(()->{
+                    activeSquad.clear();activeSquad.addAll(result);club=teamName;save();showSquad();
+                    toast("Wczytano "+result.size()+" zawodników. Brakujące oceny/potencjał są szacowane.");
+                });
+            }catch(Exception e){ui.post(()->{base("Błąd kadry");root.addView(text(e.getMessage(),13));root.addView(button("Wróć do bazy",this::showWorldDatabase));});}
+        });
+    }
     void chooseClub() {
         base("Wybierz klub");
         for(String c:clubs) root.addView(button(c, ()->{club=c; save(); showHome();}));
+        root.addView(button("🌍 Wybierz klub z bazy światowej",this::showWorldDatabase,true));
         root.addView(button("Wróć",this::showHome));
     }
     void chooseMatch() {
@@ -182,16 +318,26 @@ public class MainActivity extends Activity {
         root.addView(button("Wróć",this::showHome));
     }
     int squadStrength() {
-        int total=0; for(Player p:squad) total+=p.rating;
-        return total / Math.max(1,squad.length);
+        int total=0; ArrayList<Player> players=currentSquad(); for(Player p:players) total+=p.rating;
+        return total / Math.max(1,players.size());
+    }
+    ArrayList<Player> currentSquad() {
+        return activeSquad.isEmpty() ? new ArrayList<>(Arrays.asList(squad)) : activeSquad;
     }
     Player scorerForMinute(int minute) {
-        // Attackers and midfielders are more likely to score than defenders.
-        int[] weights = {0,1,1,1,1,2,3,3,4,6,5,0,1,3,6};
-        int total=0; for(int w:weights) total+=w;
-        int pick=random.nextInt(total);
-        for(int i=0;i<weights.length;i++){pick-=weights[i];if(pick<0)return squad[i];}
-        return squad[9];
+        ArrayList<Player> players=currentSquad();
+        int total=0;
+        for(Player p:players) total+=Math.max(1,p.position.equals("N")||p.position.equalsIgnoreCase("Attacker")?6:
+            (p.position.equals("PS")||p.position.equals("LS")||p.position.equalsIgnoreCase("Midfielder")?4:
+            (p.position.equals("ŚP")||p.position.equals("ŚPD")?3:1)));
+        int pick=random.nextInt(Math.max(1,total));
+        for(Player p:players) {
+            pick-=Math.max(1,p.position.equals("N")||p.position.equalsIgnoreCase("Attacker")?6:
+                (p.position.equals("PS")||p.position.equals("LS")||p.position.equalsIgnoreCase("Midfielder")?4:
+                (p.position.equals("ŚP")||p.position.equals("ŚPD")?3:1)));
+            if(pick<0) return p;
+        }
+        return players.get(Math.max(0,players.size()-1));
     }
     String opponentScorer() {
         String[] names={"A. Kowalski","P. Nowicki","M. Adamski","J. Pawłowski","K. Baran","D. Krupa","T. Sikora","R. Wróbel"};
@@ -328,11 +474,11 @@ public class MainActivity extends Activity {
         base("Skład drużyny");
         LinearLayout summary=panel();
         summary.addView(bold("KADRA PIERWSZEGO ZESPOŁU",14));
-        summary.addView(muted("15 zawodników  •  ocena, potencjał i wartość rynkowa",12));
-        int total=0; for(Player p:squad) total+=p.value;
+        summary.addView(muted(players.size()+" zawodników  •  dane z aktywnej kadry lub składu demonstracyjnego",12));
+        ArrayList<Player> players=currentSquad(); int total=0; for(Player p:players) total+=p.value;
         TextView value=bold("Wartość kadry: "+money(total),17); value.setTextColor(LIME); summary.addView(value);
         summary.addView(muted("BR — bramkarz • PO/LO — obrońca • ŚO — środkowy obrońca • ŚP/ŚPD — pomocnik • PS/LS — skrzydłowy • N — napastnik",10));
-        for(Player p:squad) {
+        for(Player p:players) {
             LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(android.view.Gravity.CENTER_VERTICAL);
             row.setPadding(dp(8),dp(8),dp(8),dp(8)); row.setBackground(shape(SURFACE2,0,12));
             LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.bottomMargin=dp(7); root.addView(row,rp);
@@ -345,7 +491,7 @@ public class MainActivity extends Activity {
             row.addView(market,new LinearLayout.LayoutParams(dp(105),-2));
         }
         LinearLayout hint=panel(); hint.addView(bold("RYNEK TRANSFEROWY",14));
-        hint.addView(muted("Kolejny etap: negocjacje transferowe, pensje, kontrakty i rozwój zawodników. Na razie to przykładowa kadra prototypu.",12));
+        hint.addView(muted(activeSquad.isEmpty()?"To kadra demonstracyjna. Otwórz bazę światową i wczytaj skład wybranego klubu z GOAL API.":"Kadra została pobrana z GOAL API. Oceny i potencjał mogą wymagać osobnego źródła danych.",12));
         root.addView(button("←  Wróć do kariery",this::showHome,true));
     }
     void showTable() {
