@@ -79,8 +79,9 @@ public class MainActivity extends Activity {
     }
     void chooseMatch() {
         base("Przed meczem");
-        String opponent=clubs[random.nextInt(clubs.length)];
-        while(opponent.equals(club)) opponent=clubs[random.nextInt(clubs.length)];
+        String selectedOpponent=clubs[random.nextInt(clubs.length)];
+        while(selectedOpponent.equals(club)) selectedOpponent=clubs[random.nextInt(clubs.length)];
+        final String opponent=selectedOpponent;
         root.addView(text(club+"  vs  "+opponent,21));
         root.addView(text("Wybierz sposób rozegrania. Oba tryby używają tego samego wyniku silnika.",15));
         root.addView(button("Szybka symulacja",()->play(opponent,false)));
