@@ -110,31 +110,58 @@ public class MainActivity extends Activity {
     }
     String money(int n) { return String.format(Locale.US,"%,d",n).replace(',',' ')+" zł"; }
     void showHome() {
-        base("Centrum kariery");
-        LinearLayout hero=panel();
-        hero.addView(muted("TWÓJ KLUB  /  SEZON 2026–27",10));
-        hero.addView(bold(club,27));
-        hero.addView(muted("Każdy mecz przybliża Cię do mistrzostwa.",12));
-        View spacer=new View(this); hero.addView(spacer,new LinearLayout.LayoutParams(1,dp(12)));
-        TextView budget=bold("BUDŻET TRANSFEROWY     "+money(cash),15); budget.setTextColor(LIME); hero.addView(budget);
-        TextView title=bold("SEZON W LICZBACH",13); root.addView(title);
-        LinearLayout stats=new LinearLayout(this); stats.setOrientation(LinearLayout.HORIZONTAL);
+        base("CENTRUM KLUBU");
+        // Season header — compact, game-like hierarchy rather than a stack of generic buttons.
+        LinearLayout season = panel();
+        season.setBackground(shape(Color.rgb(21,42,43), Color.rgb(65,105,74), 20));
+        season.addView(muted("SEZON 2026/27     •     TRYB KARIERY",10));
+        TextView clubTitle = bold(club,30); clubTitle.setTextColor(Color.WHITE); season.addView(clubTitle);
+        TextView identity = muted("MENEDŻER  /  PIERWSZY ZESPÓŁ",10); season.addView(identity);
+        View gap = new View(this); season.addView(gap,new LinearLayout.LayoutParams(1,dp(8)));
+        LinearLayout finance = new LinearLayout(this); finance.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout finances = new LinearLayout(this); finances.setOrientation(LinearLayout.VERTICAL);
+        finances.addView(muted("BUDŻET TRANSFEROWY",10));
+        TextView budget = bold(money(cash),20); budget.setTextColor(LIME); finances.addView(budget);
+        finance.addView(finances,new LinearLayout.LayoutParams(0,-2,1));
+        TextView clubMark = bold(initials(club),22); clubMark.setGravity(android.view.Gravity.CENTER);
+        clubMark.setTextColor(LIME); clubMark.setBackground(shape(Color.rgb(8,22,27),LIME,15));
+        finance.addView(clubMark,new LinearLayout.LayoutParams(dp(58),dp(58)));
+        season.addView(finance);
+
+        TextView seasonLabel = bold("PRZEGLĄD SEZONU",12); seasonLabel.setTextColor(MUTED); root.addView(seasonLabel);
+        LinearLayout stats = new LinearLayout(this); stats.setOrientation(LinearLayout.HORIZONTAL);
         addStat(stats,String.valueOf(points),"PUNKTY"); addStat(stats,String.valueOf(played),"MECZE"); addStat(stats,wins+"-"+draws+"-"+losses,"W-R-P");
-        LinearLayout.LayoutParams stlp=new LinearLayout.LayoutParams(-1,-2); stlp.bottomMargin=dp(13); root.addView(stats,stlp);
-        LinearLayout next=panel(); next.addView(muted("NASTĘPNE SPOTKANIE",10));
-        String opponent=clubs[random.nextInt(clubs.length)]; while(opponent.equals(club))opponent=clubs[random.nextInt(clubs.length)];
-        LinearLayout matchup=new LinearLayout(this); matchup.setGravity(android.view.Gravity.CENTER); matchup.setPadding(0,dp(8),0,dp(8));
-        TextView home=bold(initials(club)+"\n"+club,15); home.setGravity(android.view.Gravity.CENTER); matchup.addView(home,new LinearLayout.LayoutParams(0,-2,1));
-        TextView vs=bold("VS",18); vs.setTextColor(MUTED); matchup.addView(vs);
-        TextView away=bold(opponent+"\n"+initials(opponent),15); away.setGravity(android.view.Gravity.CENTER); matchup.addView(away,new LinearLayout.LayoutParams(0,-2,1));
-        next.addView(matchup); next.addView(button("ROZEGRAJ MECZ   →",this::chooseMatch,true));
-        LinearLayout menu=panel(); menu.addView(bold("ZARZĄDZANIE KLUBEM",13));
-        menu.addView(button("👥   Skład i zawodnicy",this::showSquad));
-        menu.addView(button("📊   Tabela ligi",this::showTable));
-        menu.addView(button("🛡   Zmień klub",this::chooseClub));
-        menu.addView(button("📋   Historia ostatniego meczu",this::showLast));
-        menu.addView(button("↻   Nowa kariera (reset)",this::resetCareer));
-        TextView note=muted("PROTOTYP OFFLINE  •  WERSJA 0.2",10); note.setGravity(android.view.Gravity.CENTER); root.addView(note);
+        LinearLayout.LayoutParams stlp = new LinearLayout.LayoutParams(-1,-2); stlp.bottomMargin=dp(16); root.addView(stats,stlp);
+
+        String opponent = clubs[(Arrays.asList(clubs).indexOf(club)+1)%clubs.length];
+        LinearLayout next = panel();
+        next.addView(muted("NASTĘPNY MECZ  /  KOLEJKA "+(played+1),10));
+        LinearLayout matchup = new LinearLayout(this); matchup.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        matchup.setPadding(0,dp(12),0,dp(12));
+        LinearLayout homeTeam = new LinearLayout(this); homeTeam.setOrientation(LinearLayout.VERTICAL); homeTeam.setGravity(android.view.Gravity.CENTER);
+        TextView homeBadge = bold(initials(club),24); homeBadge.setGravity(android.view.Gravity.CENTER); homeBadge.setTextColor(LIME);
+        homeBadge.setBackground(shape(SURFACE2,BORDER,15)); homeTeam.addView(homeBadge,new LinearLayout.LayoutParams(dp(64),dp(64)));
+        TextView homeName = bold(club,12); homeName.setGravity(android.view.Gravity.CENTER); homeTeam.addView(homeName);
+        matchup.addView(homeTeam,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout middle = new LinearLayout(this); middle.setOrientation(LinearLayout.VERTICAL); middle.setGravity(android.view.Gravity.CENTER);
+        TextView vs = bold("VS",22); vs.setTextColor(MUTED); middle.addView(vs);
+        middle.addView(muted("18:00",10)); matchup.addView(middle);
+        LinearLayout awayTeam = new LinearLayout(this); awayTeam.setOrientation(LinearLayout.VERTICAL); awayTeam.setGravity(android.view.Gravity.CENTER);
+        TextView awayBadge = bold(initials(opponent),24); awayBadge.setGravity(android.view.Gravity.CENTER); awayBadge.setTextColor(Color.WHITE);
+        awayBadge.setBackground(shape(SURFACE2,BORDER,15)); awayTeam.addView(awayBadge,new LinearLayout.LayoutParams(dp(64),dp(64)));
+        TextView awayName = bold(opponent,12); awayName.setGravity(android.view.Gravity.CENTER); awayTeam.addView(awayName);
+        matchup.addView(awayTeam,new LinearLayout.LayoutParams(0,-2,1));
+        next.addView(matchup);
+        next.addView(button("PRZEJDŹ DO MECZU   →",this::chooseMatch,true));
+
+        TextView toolsTitle = bold("ZARZĄDZANIE",12); toolsTitle.setTextColor(MUTED); root.addView(toolsTitle);
+        LinearLayout tools = panel();
+        tools.addView(button("⚽   Skład i zawodnicy",this::showSquad));
+        tools.addView(button("🏆   Tabela ligi",this::showTable));
+        tools.addView(button("⇄   Zmień klub",this::chooseClub));
+        tools.addView(button("▤   Historia ostatniego meczu",this::showLast));
+        LinearLayout footer = new LinearLayout(this); footer.setGravity(android.view.Gravity.CENTER);
+        TextView note = muted("FOOTBALL EMPIRE  •  CAREER SAVE",9); footer.addView(note); root.addView(footer);
     }
     void chooseClub() {
         base("Wybierz klub");
