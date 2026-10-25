@@ -43,7 +43,9 @@ public class MainActivity extends Activity {
     };
 
     static class Match {
-        int home, away;
+        int home, away, homeShots, awayShots, homeOnTarget, awayOnTarget;
+        int homePossession=50, awayPossession=50, homeCorners, awayCorners, homeFouls, awayFouls;
+        int homeYellow, awayYellow, homeRed, awayRed;
         String homeName, awayName;
         ArrayList<String> events = new ArrayList<>();
         Match(int h, int a, String hn, String an) { home=h; away=a; homeName=hn; awayName=an; }
@@ -179,13 +181,82 @@ public class MainActivity extends Activity {
         root.addView(button("Mecz 2D",()->play(opponent,true)));
         root.addView(button("Wróć",this::showHome));
     }
+    int squadStrength() {
+        int total=0; for(Player p:squad) total+=p.rating;
+        return total / Math.max(1,squad.length);
+    }
+    Player scorerForMinute(int minute) {
+        // Attackers and midfielders are more likely to score than defenders.
+        int[] weights = {0,1,1,1,1,2,3,3,4,6,5,0,1,3,6};
+        int total=0; for(int w:weights) total+=w;
+        int pick=random.nextInt(total);
+        for(int i=0;i<weights.length;i++){pick-=weights[i];if(pick<0)return squad[i];}
+        return squad[9];
+    }
+    String opponentScorer() {
+        String[] names={"A. Kowalski","P. Nowicki","M. Adamski","J. Pawłowski","K. Baran","D. Krupa","T. Sikora","R. Wróbel"};
+        return names[random.nextInt(names.length)];
+    }
     Match simulate(String opponent) {
-        int home=1+random.nextInt(4), away=random.nextInt(4);
-        Match m=new Match(home,away,club,opponent);
-        for(int i=0;i<home;i++) m.events.add((8+random.nextInt(82))+"' GOL: "+club);
-        for(int i=0;i<away;i++) m.events.add((8+random.nextInt(82))+"' GOL: "+opponent);
-        Collections.sort(m.events, (a,b)->Integer.compare(Integer.parseInt(a.substring(0,a.indexOf("'"))),Integer.parseInt(b.substring(0,b.indexOf("'")))));
+        // One deterministic-in-this-match event stream feeds BOTH match presentation modes.
+        Match m=new Match(0,0,club,opponent);
+        int strength=squadStrength();
+        int opponentStrength=65+random.nextInt(13);
+        int homeEdge=Math.max(-12,Math.min(12,strength-opponentStrength))+3; // home advantage
+        m.homePossession=Math.max(35,Math.min(65,50+homeEdge/2+random.nextInt(9)-4));
+        m.awayPossession=100-m.homePossession;
+        m.events.add("00'  SĘDZIA ROZPOCZYNA SPOTKANIE");
+        for(int minute=1;minute<=90;minute++) {
+            if(minute==46) m.events.add("45+?  KONIEC PIERWSZEJ POŁOWY");
+            // Each side creates attacks throughout the match; quality changes shot and conversion odds.
+            double homeAttack=0.175 + homeEdge*0.0025;
+            double awayAttack=0.175 - homeEdge*0.0018;
+            if(random.nextDouble()<homeAttack) {
+                if(random.nextDouble()<0.47) {
+                    m.homeShots++;
+                    if(random.nextDouble()<Math.min(0.78,0.38+strength*0.0018)) {
+                        m.homeOnTarget++;
+                        double conversion=Math.max(0.12,Math.min(0.36,0.235+(strength-opponentStrength)*0.004));
+                        if(random.nextDouble()<conversion) {
+                            m.home++;
+                            Player scorer=scorerForMinute(minute);
+                            Player assist=scorerForMinute(minute);
+                            while(assist.name.equals(scorer.name)) assist=scorerForMinute(minute);
+                            m.events.add(minute+"' GOL "+club+" — "+scorer.name+" (asysta: "+assist.name+")");
+                        } else if(random.nextBoolean()) m.events.add(minute+"' BRAMKARZ "+opponent+" broni groźny strzał");
+                    }
+                }
+                if(random.nextDouble()<0.105) m.homeCorners++;
+            }
+            if(random.nextDouble()<awayAttack) {
+                if(random.nextDouble()<0.45) {
+                    m.awayShots++;
+                    if(random.nextDouble()<Math.min(0.78,0.37+opponentStrength*0.0018)) {
+                        m.awayOnTarget++;
+                        double conversion=Math.max(0.12,Math.min(0.36,0.235+(opponentStrength-strength)*0.003));
+                        if(random.nextDouble()<conversion) {
+                            m.away++;
+                            m.events.add(minute+"' GOL "+opponent+" — "+opponentScorer()+" (asysta: "+opponentScorer()+")");
+                        } else if(random.nextBoolean()) m.events.add(minute+"' BRAMKARZ "+club+" ratuje zespół");
+                    }
+                }
+                if(random.nextDouble()<0.095) m.awayCorners++;
+            }
+            if(random.nextDouble()<0.115) m.homeFouls++;
+            if(random.nextDouble()<0.115) m.awayFouls++;
+            if(random.nextDouble()<0.018) {
+                if(random.nextBoolean()) {m.homeYellow++;m.events.add(minute+"' ŻÓŁTA KARTKA: "+club);}
+                else {m.awayYellow++;m.events.add(minute+"' ŻÓŁTA KARTKA: "+opponent);}
+            }
+            if(minute==45) m.events.add("45'  KONIEC PIERWSZEJ POŁOWY");
+        }
+        m.events.add("90'  KONIEC MECZU  •  WYNIK "+m.home+":"+m.away);
+        Collections.sort(m.events,(a,b)->Integer.compare(eventMinute(a),eventMinute(b)));
         return m;
+    }
+    int eventMinute(String event) {
+        try { return Integer.parseInt(event.substring(0,event.indexOf("'")).replace("+?","45")); }
+        catch(Exception e) { return 999; }
     }
     void play(String opponent, boolean animate) {
         Match m=simulate(opponent);
@@ -195,21 +266,41 @@ public class MainActivity extends Activity {
         if(animate) show2D(m); else showResult(m);
     }
     void showResult(Match m) {
-        base("Koniec meczu");
-        root.addView(text(m.homeName+"  "+m.home+" : "+m.away+"  "+m.awayName,23));
-        root.addView(text("Statystyki prototypu",18));
-        root.addView(text("Strzały (symulowane): "+(m.home*3+2)+" : "+(m.away*3+1),15));
-        root.addView(text("Posiadanie piłki (symulowane): "+(40+random.nextInt(21))+"% : reszta",15));
-        for(String e:m.events) root.addView(text(e,15));
-        root.addView(button("Wróć do kariery",this::showHome));
+        base("RAPORT MECZOWY");
+        LinearLayout score=panel();
+        score.setBackground(shape(Color.rgb(21,42,43),Color.rgb(65,105,74),20));
+        score.addView(muted("WYNIK KOŃCOWY  •  90 MIN",10));
+        TextView teams=bold(m.home+"     :     "+m.away,34); teams.setGravity(android.view.Gravity.CENTER); score.addView(teams);
+        TextView names=bold(m.homeName+"       "+m.awayName,13); names.setGravity(android.view.Gravity.CENTER); score.addView(names);
+        TextView statsTitle=bold("STATYSTYKI SPOTKANIA",13); statsTitle.setTextColor(LIME); root.addView(statsTitle);
+        LinearLayout stats=panel();
+        statLine(stats,"Posiadanie piłki",m.homePossession+"%",m.awayPossession+"%");
+        statLine(stats,"Strzały",String.valueOf(m.homeShots),String.valueOf(m.awayShots));
+        statLine(stats,"Celne strzały",String.valueOf(m.homeOnTarget),String.valueOf(m.awayOnTarget));
+        statLine(stats,"Rzuty rożne",String.valueOf(m.homeCorners),String.valueOf(m.awayCorners));
+        statLine(stats,"Faule",String.valueOf(m.homeFouls),String.valueOf(m.awayFouls));
+        statLine(stats,"Żółte kartki",String.valueOf(m.homeYellow),String.valueOf(m.awayYellow));
+        LinearLayout timeline=panel(); timeline.addView(bold("OŚ CZASU MECZU",14));
+        for(String e:m.events) timeline.addView(muted(e,12));
+        root.addView(button("Wróć do kariery",this::showHome,true));
+    }
+    void statLine(LinearLayout parent,String label,String homeValue,String awayValue) {
+        LinearLayout row=new LinearLayout(this); row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        TextView left=bold(homeValue,13); left.setGravity(android.view.Gravity.LEFT);
+        TextView mid=muted(label,11); mid.setGravity(android.view.Gravity.CENTER);
+        TextView right=bold(awayValue,13); right.setGravity(android.view.Gravity.RIGHT);
+        row.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+        row.addView(mid,new LinearLayout.LayoutParams(0,-2,2));
+        row.addView(right,new LinearLayout.LayoutParams(0,-2,1));
+        parent.addView(row);
     }
     void show2D(Match m) {
         base("Mecz 2D");
         root.addView(text(m.homeName+"  "+m.home+" : "+m.away+"  "+m.awayName,19));
         PitchView pitch=new PitchView(this,m);
         root.addView(pitch,new LinearLayout.LayoutParams(-1,0,1));
-        root.addView(text("Przebieg spotkania",18));
-        for(String e:m.events) root.addView(text(e,14));
+        root.addView(text("Wydarzenia na boisku",18));
+        for(String e:m.events) root.addView(text(e,12));
         root.addView(button("Zakończ i wróć do kariery",this::showHome));
     }
     class PitchView extends View {
