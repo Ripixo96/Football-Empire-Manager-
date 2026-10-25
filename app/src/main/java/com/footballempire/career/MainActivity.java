@@ -25,6 +25,8 @@ public class MainActivity extends Activity {
     final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     ArrayList<JSONObject> worldLeagues = new ArrayList<>();
     ArrayList<JSONObject> worldTeams = new ArrayList<>();
+    boolean leaguesMore=false, teamsMore=false;
+    String currentLeagueId="", currentLeagueName="";
     ArrayList<Player> activeSquad = new ArrayList<>();
     final Random random = new Random();
     Match lastMatch;
@@ -239,7 +241,9 @@ public class MainActivity extends Activity {
                 JSONObject response=apiGet("/leagues?limit=100&offset=0");
                 JSONArray a=dataArray(response); ArrayList<JSONObject> result=new ArrayList<>();
                 for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
-                ui.post(()->{worldLeagues.clear();worldLeagues.addAll(result);showWorldDatabase();toast("Pobrano "+worldLeagues.size()+" lig/rozgrywek.");});
+                JSONObject pagination=response.optJSONObject("pagination");
+                boolean more=pagination!=null&&pagination.optBoolean("hasMore",false);
+                ui.post(()->{worldLeagues.clear();worldLeagues.addAll(result);leaguesMore=more;showWorldDatabase();toast("Pobrano "+worldLeagues.size()+" lig/rozgrywek.");});
             } catch(Exception e){ui.post(()->{showWorldDatabase();toast("Nie udało się pobrać lig: "+e.getMessage());});}
         });
     }
@@ -252,23 +256,47 @@ public class MainActivity extends Activity {
             String label=name+(country.isEmpty()?"":"  •  "+country);
             root.addView(button(label,()->loadWorldTeams(id,name)));
         }
+        if(leaguesMore) root.addView(button("Wczytaj kolejne ligi świata  →",()->loadMoreLeagues()));
     }
-    void loadWorldTeams(String leagueId,String leagueName) {
-        base("Kluby / "+leagueName);root.addView(text("Pobieram kluby z rozgrywek…",14));
+    void loadMoreLeagues() {
+        base("Pobieranie kolejnych lig");
         apiExecutor.execute(()->{
             try {
-                JSONObject response=apiGet("/leagues/"+URLEncoder.encode(leagueId,"UTF-8")+"/teams?limit=100&offset=0");
+                int offset=worldLeagues.size();
+                JSONObject response=apiGet("/leagues?limit=100&offset="+offset);
                 JSONArray a=dataArray(response);ArrayList<JSONObject> result=new ArrayList<>();
                 for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
+                JSONObject pagination=response.optJSONObject("pagination");
+                boolean more=pagination!=null&&pagination.optBoolean("hasMore",false);
+                ui.post(()->{worldLeagues.addAll(result);leaguesMore=more;showWorldDatabase();});
+            }catch(Exception e){ui.post(()->{showWorldDatabase();toast("Błąd pobierania kolejnych lig: "+e.getMessage());});}
+        });
+    }
+    void loadWorldTeams(String leagueId,String leagueName) {
+        currentLeagueId=leagueId;currentLeagueName=leagueName;worldTeams.clear();teamsMore=false;
+        loadWorldTeamsPage(0,false);
+    }
+    void loadWorldTeamsPage(int offset,boolean append) {
+        base("Kluby / "+currentLeagueName);root.addView(text("Pobieram kluby z rozgrywek…",14));
+        apiExecutor.execute(()->{
+            try {
+                JSONObject response=apiGet("/leagues/"+URLEncoder.encode(currentLeagueId,"UTF-8")+"/teams?limit=100&offset="+offset);
+                JSONArray a=dataArray(response);ArrayList<JSONObject> result=new ArrayList<>();
+                for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
+                JSONObject pagination=response.optJSONObject("pagination");
+                boolean more=pagination!=null&&pagination.optBoolean("hasMore",false);
                 ui.post(()->{
-                    worldTeams.clear();worldTeams.addAll(result);base("Kluby / "+leagueName);
-                    root.addView(muted("Znaleziono "+worldTeams.size()+" klubów w tej odpowiedzi API.",12));
+                    if(!append)worldTeams.clear();
+                    worldTeams.addAll(result);teamsMore=more;
+                    base("Kluby / "+currentLeagueName);
+                    root.addView(muted("Wczytano "+worldTeams.size()+" klubów.",12));
                     for(JSONObject team:worldTeams){
                         String id=team.optString("id",team.optString("apiId",""));
                         String name=team.optString("name",team.optString("teamName","Klub"));
                         String country=team.optString("countryName","");
                         root.addView(button(name+(country.isEmpty()?"":" • "+country),()->loadWorldTeamSquad(id,name)));
                     }
+                    if(teamsMore)root.addView(button("Wczytaj kolejne kluby  →",()->loadWorldTeamsPage(worldTeams.size(),true)));
                     root.addView(button("← Wróć do lig",this::showWorldDatabase));
                 });
             }catch(Exception e){ui.post(()->{base("Błąd bazy");root.addView(text(e.getMessage(),13));root.addView(button("Wróć",this::showWorldDatabase));});}
