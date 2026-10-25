@@ -472,10 +472,11 @@ public class MainActivity extends Activity {
     }
     void showSquad() {
         base("Skład drużyny");
+        ArrayList<Player> players=currentSquad();
         LinearLayout summary=panel();
         summary.addView(bold("KADRA PIERWSZEGO ZESPOŁU",14));
         summary.addView(muted(players.size()+" zawodników  •  dane z aktywnej kadry lub składu demonstracyjnego",12));
-        ArrayList<Player> players=currentSquad(); int total=0; for(Player p:players) total+=p.value;
+        int total=0; for(Player p:players) total+=p.value;
         TextView value=bold("Wartość kadry: "+money(total),17); value.setTextColor(LIME); summary.addView(value);
         summary.addView(muted("BR — bramkarz • PO/LO — obrońca • ŚO — środkowy obrońca • ŚP/ŚPD — pomocnik • PS/LS — skrzydłowy • N — napastnik",10));
         for(Player p:players) {
