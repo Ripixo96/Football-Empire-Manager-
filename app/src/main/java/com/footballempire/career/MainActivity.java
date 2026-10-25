@@ -20,6 +20,28 @@ public class MainActivity extends Activity {
     final Random random = new Random();
     Match lastMatch;
 
+    static class Player {
+        String name, position; int rating, potential, age, value;
+        Player(String n,String p,int r,int pot,int a,int v){name=n;position=p;rating=r;potential=pot;age=a;value=v;}
+    }
+    final Player[] squad = {
+        new Player("M. Nowak","BR",72,79,25,1800000),
+        new Player("A. Zieliński","PO",68,76,22,950000),
+        new Player("K. Wiśniewski","ŚO",71,78,24,1400000),
+        new Player("P. Wójcik","ŚO",70,74,28,1100000),
+        new Player("J. Kamiński","LO",69,80,21,1200000),
+        new Player("T. Lewandowski","ŚPD",73,77,27,2100000),
+        new Player("B. Dąbrowski","ŚP",75,82,23,3200000),
+        new Player("S. Kozłowski","ŚP",70,81,20,1700000),
+        new Player("D. Szymański","PS",74,79,24,2600000),
+        new Player("M. Kaczmarek","N",76,78,26,3500000),
+        new Player("O. Mazur","LS",72,84,19,2400000),
+        new Player("R. Pawlak","BR",65,70,31,350000),
+        new Player("Ł. Król","ŚO",66,73,22,600000),
+        new Player("F. Jankowski","ŚP",67,77,20,850000),
+        new Player("C. Urban","N",68,75,23,900000)
+    };
+
     static class Match {
         int home, away;
         String homeName, awayName;
@@ -107,7 +129,7 @@ public class MainActivity extends Activity {
         TextView away=bold(opponent+"\n"+initials(opponent),15); away.setGravity(android.view.Gravity.CENTER); matchup.addView(away,new LinearLayout.LayoutParams(0,-2,1));
         next.addView(matchup); next.addView(button("ROZEGRAJ MECZ   →",this::chooseMatch,true));
         LinearLayout menu=panel(); menu.addView(bold("ZARZĄDZANIE KLUBEM",13));
-        menu.addView(button("📊   Tabela ligi",this::showTable));
+        menu.addView(button("👥   Skład i zawodnicy",this::showSquad));\n        menu.addView(button("📊   Tabela ligi",this::showTable));
         menu.addView(button("🛡   Zmień klub",this::chooseClub));
         menu.addView(button("📋   Historia ostatniego meczu",this::showLast));
         menu.addView(button("↻   Nowa kariera (reset)",this::resetCareer));
@@ -182,6 +204,30 @@ public class MainActivity extends Activity {
             }
             p.setColor(Color.WHITE);c.drawCircle(w*.52f,h*.52f,7,p);
         }
+    }
+    void showSquad() {
+        base("Skład drużyny");
+        LinearLayout summary=panel();
+        summary.addView(bold("KADRA PIERWSZEGO ZESPOŁU",14));
+        summary.addView(muted("15 zawodników  •  ocena, potencjał i wartość rynkowa",12));
+        int total=0; for(Player p:squad) total+=p.value;
+        TextView value=bold("Wartość kadry: "+money(total),17); value.setTextColor(LIME); summary.addView(value);
+        summary.addView(muted("BR — bramkarz • PO/LO — obrońca • ŚO — środkowy obrońca • ŚP/ŚPD — pomocnik • PS/LS — skrzydłowy • N — napastnik",10));
+        for(Player p:squad) {
+            LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(8),dp(8),dp(8),dp(8)); row.setBackground(shape(SURFACE2,0,12));
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.bottomMargin=dp(7); root.addView(row,rp);
+            TextView rating=bold(String.valueOf(p.rating),20); rating.setTextColor(p.rating>=75?LIME:Color.WHITE); rating.setGravity(android.view.Gravity.CENTER);
+            row.addView(rating,new LinearLayout.LayoutParams(dp(42),-2));
+            LinearLayout info=new LinearLayout(this); info.setOrientation(LinearLayout.VERTICAL);
+            info.addView(bold(p.name,14)); info.addView(muted(p.position+"  •  "+p.age+" lat  •  potencjał "+p.potential,11));
+            row.addView(info,new LinearLayout.LayoutParams(0,-2,1));
+            TextView market=muted(money(p.value),11); market.setGravity(android.view.Gravity.RIGHT|android.view.Gravity.CENTER_VERTICAL);
+            row.addView(market,new LinearLayout.LayoutParams(dp(105),-2));
+        }
+        LinearLayout hint=panel(); hint.addView(bold("RYNEK TRANSFEROWY",14));
+        hint.addView(muted("Kolejny etap: negocjacje transferowe, pensje, kontrakty i rozwój zawodników. Na razie to przykładowa kadra prototypu.",12));
+        root.addView(button("←  Wróć do kariery",this::showHome,true));
     }
     void showTable() {
         base("Tabela ligi");
