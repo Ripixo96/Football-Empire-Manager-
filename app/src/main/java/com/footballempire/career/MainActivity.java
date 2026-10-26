@@ -363,6 +363,7 @@ public class MainActivity extends Activity {
             String name=league.optString("name","Nieznana liga");
             String country=league.optString("countryName",league.optString("country",""));
             String id=league.optString("id",league.optString("apiId",""));
+            careerDb.recordCompetition(id,name,country,logoUrl(league));
             addLogoRow(name,country,logoUrl(league),()->loadWorldTeams(id,name));
         }
         if(leaguesMore) root.addView(button("Wczytaj kolejne ligi świata  →",()->loadMoreLeagues()));
@@ -403,6 +404,7 @@ public class MainActivity extends Activity {
                         String id=team.optString("id",team.optString("apiId",""));
                         String name=team.optString("name",team.optString("teamName","Klub"));
                         String country=team.optString("countryName","");
+                        careerDb.recordClub(id,name,country,currentLeagueName,logoUrl(team));
                         addLogoRow(name,country,logoUrl(team),()->loadWorldTeamSquad(id,name,logoUrl(team)));
                     }
                     if(teamsMore)root.addView(button("Wczytaj kolejne kluby  →",()->loadWorldTeamsPage(worldTeams.size(),true)));
