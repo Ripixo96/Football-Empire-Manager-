@@ -31,7 +31,7 @@ jobs:
           targetPlatform: Android
           buildsPath: build
           buildName: FootballEmpire
-          androidAppBundle: false
+          androidExportType: androidPackage
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
