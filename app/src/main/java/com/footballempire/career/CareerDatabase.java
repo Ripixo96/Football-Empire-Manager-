@@ -39,6 +39,16 @@ public class CareerDatabase extends SQLiteOpenHelper {
         getWritableDatabase().insert("career_saves", null, v);
     }
 
+    public void recordCompetition(String externalId, String name, String country, String logoUrl) {
+        ContentValues v = new ContentValues(); v.put("external_id", externalId); v.put("name", name); v.put("country", country); v.put("logo_url", logoUrl);
+        getWritableDatabase().insertWithOnConflict("competitions", null, v, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    public void recordClub(String externalId, String name, String country, String competition, String crestUrl) {
+        ContentValues v = new ContentValues(); v.put("external_id", externalId); v.put("name", name); v.put("country", country); v.put("competition", competition); v.put("crest_url", crestUrl);
+        getWritableDatabase().insertWithOnConflict("clubs", null, v, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
     public void replacePlayers(String club, java.util.List<MainActivity.Player> players) {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
