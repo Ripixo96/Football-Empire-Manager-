@@ -30,6 +30,11 @@ public class MainActivity extends Activity {
     String currentLeagueId="", currentLeagueName="";
     ArrayList<Player> activeSquad = new ArrayList<>();
     final Random random = new Random();
+    CareerDatabase careerDb;
+    String formation = "4-3-3";
+    int morale = 72, trainingLevel = 1, seasonDay = 1;
+    ArrayList<String> careerNews = new ArrayList<>();
+    ArrayList<String> fixtureResults = new ArrayList<>();
     Match lastMatch;
 
     static class Player {
@@ -66,6 +71,9 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
         prefs = getSharedPreferences("career", MODE_PRIVATE);
+        careerDb = new CareerDatabase(this);
+        formation = prefs.getString("formation","4-3-3"); morale=prefs.getInt("morale",72); trainingLevel=prefs.getInt("training_level",1); seasonDay=prefs.getInt("season_day",1);
+        loadStringList("news",careerNews); loadStringList("fixtures",fixtureResults);
         load();
         showHome();
     }
@@ -76,9 +84,12 @@ public class MainActivity extends Activity {
         goalsFor=prefs.getInt("gf",0); goalsAgainst=prefs.getInt("ga",0); cash=prefs.getInt("cash",5000000);
         club=prefs.getString("club","Real Madrid"); clubLogo=prefs.getString("club_logo","");
     }
+    void loadStringList(String key, ArrayList<String> out) { try { JSONArray a=new JSONArray(prefs.getString(key,"[]")); for(int i=0;i<a.length();i++)out.add(a.getString(i)); } catch(Exception ignored){} }
+    void saveLists() { prefs.edit().putString("news",new JSONArray(careerNews).toString()).putString("fixtures",new JSONArray(fixtureResults).toString()).apply(); }
+    void addNews(String item) { careerNews.add(0,"Dzień "+seasonDay+" • "+item); while(careerNews.size()>50)careerNews.remove(careerNews.size()-1); saveLists(); }
     void save() {
         prefs.edit().putInt("played",played).putInt("wins",wins).putInt("draws",draws).putInt("losses",losses)
-            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).putString("club_logo",clubLogo).apply();
+            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).putString("club_logo",clubLogo).putString("formation",formation).putInt("morale",morale).putInt("training_level",trainingLevel).putInt("season_day",seasonDay).apply();
     }
     static final int BG = Color.rgb(8,13,25), SURFACE = Color.rgb(18,27,45), SURFACE2 = Color.rgb(25,37,58);
     static final int MUTED = Color.rgb(157,172,194), LIME = Color.rgb(194,255,82), BORDER = Color.rgb(43,59,82);
@@ -189,9 +200,20 @@ public class MainActivity extends Activity {
         grid.addView(row1);
         LinearLayout row2=new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
         addHomeTile(row2,"🌍","SKAUTING","Ligi i kluby świata",this::showWorldDatabase);
-        addHomeTile(row2,"⇄","TRANSFERy","Zmień klub",this::chooseClub);
+        addHomeTile(row2,"⇄","TRANSFERY","Zmień klub",this::chooseClub);
         grid.addView(row2);
         root.addView(grid);
+
+        TextView management=bold("ZARZĄDZANIE KARIerĄ",12); management.setTextColor(MUTED); root.addView(management);
+        root.addView(button("🧠  TAKTYKA I USTAWIENIE",this::showTactics));
+        root.addView(button("⇄  RYNEK TRANSFEROWY",this::showTransfers));
+        root.addView(button("📈  ROZWÓJ I TRENING",this::showDevelopment));
+        root.addView(button("🕵  SKAUTING ZAWODNIKÓW",this::showScouting));
+        root.addView(button("🤝  MORALE I SZATNIA",this::showMorale));
+        root.addView(button("📰  WIADOMOŚCI SPORTOWE",this::showNews));
+        root.addView(button("📅  KALENDARZ SEZONU",this::showCalendar));
+        root.addView(button("💾  ZAPISY KARIERY / BAZA DANYCH",this::showSaves));
+
         root.addView(button("▤   OSTATNI MECZ I STATYSTYKI",this::showLast));
         View bottomSpace=new View(this); root.addView(bottomSpace,new LinearLayout.LayoutParams(1,dp(8)));
         TextView footer=muted("FOOTBALL EMPIRE  •  TWOJA HISTORIA. TWÓJ KLUB.",9);
@@ -333,7 +355,8 @@ public class MainActivity extends Activity {
         });
     }
     void renderWorldLeagues() {
-        TextView heading=bold("WYBRANE ROZGRYWKI ("+worldLeagues.size()+"/40)",13);heading.setTextColor(LIME);root.addView(heading);\n        root.addView(muted("Lista jest ograniczona do 40 pozycji, żeby nie zaśmiecać kariery tysiącem rozgrywek.",11));
+        TextView heading=bold("WYBRANE ROZGRYWKI ("+worldLeagues.size()+"/40)",13);heading.setTextColor(LIME);root.addView(heading);
+        root.addView(muted("Lista jest ograniczona do 40 pozycji, żeby nie zaśmiecać kariery tysiącem rozgrywek.",11));
         for(JSONObject league:worldLeagues) {
             String name=league.optString("name","Nieznana liga");
             String country=league.optString("countryName",league.optString("country",""));
@@ -522,7 +545,7 @@ public class MainActivity extends Activity {
         Match m=simulate(opponent);
         played++; goalsFor+=m.home; goalsAgainst+=m.away;
         if(m.home>m.away){wins++;points+=3;cash+=250000;} else if(m.home==m.away){draws++;points++;cash+=100000;} else {losses++;cash+=50000;}
-        lastMatch=m; save();
+        lastMatch=m; seasonDay+=7; morale=Math.max(15,Math.min(100,m.home>m.away?morale+5:(m.home==m.away?morale+1:morale-7)));\n        addNews(m.homeName+" "+m.home+":"+m.away+" "+m.awayName+" — "+(m.home>m.away?"zwycięstwo":(m.home==m.away?"remis":"porażka"))+".");\n        fixtureResults.add("Dzień "+seasonDay+" • "+m.homeName+" "+m.home+":"+m.away+" "+m.awayName); saveLists();\n        careerDb.recordMatch(m.homeName,m.awayName,m.home,m.away,seasonDay); save();
         if(animate) show2D(m); else showResult(m);
     }
     void showResult(Match m) {
@@ -625,6 +648,107 @@ public class MainActivity extends Activity {
         else {root.addView(text(lastMatch.homeName+" "+lastMatch.home+" : "+lastMatch.away+" "+lastMatch.awayName,20)); for(String e:lastMatch.events)root.addView(text(e,15));}
         root.addView(button("Wróć",this::showHome));
     }
+
+    void showTactics() {
+        base("Taktyka i ustawienie");
+        LinearLayout p=panel(); p.addView(bold("PLAN MECZOWY",18)); p.addView(muted("Ustawienie wpływa na siłę zespołu w symulacji. Zapisuje się automatycznie.",12));
+        p.addView(bold("Aktualne ustawienie: "+formation,22)); p.addView(muted("Morale zespołu: "+morale+"/100",12));
+        String[] forms={"4-3-3","4-2-3-1","4-4-2","3-5-2","5-3-2"};
+        for(String f:forms)root.addView(button((f.equals(formation)?"✓  ":"")+f,()->{formation=f;save();showTactics();},f.equals(formation)));
+        root.addView(button("Wróć do kariery",this::showHome));
+    }
+    void showTransfers() {
+        base("Rynek transferowy");
+        root.addView(muted("Okno transferowe • budżet: "+money(cash)+" • skład: "+currentSquad().size()+" zawodników",12));
+        ArrayList<Player> market=new ArrayList<>();
+        market.add(new Player("I. Maj","N",73,82,21,1800000));
+        market.add(new Player("A. Nowicki","ŚP",71,84,19,1450000));
+        market.add(new Player("K. Baran","ŚO",70,75,26,950000));
+        market.add(new Player("M. Adamski","PS",75,86,20,3200000));
+        market.add(new Player("P. Kamińska","BR",68,78,22,700000));
+        for(Player p:market) {
+            LinearLayout card=panel(); card.addView(bold(p.name+"  •  "+p.position,16));card.addView(muted("OVR "+p.rating+" • POT "+p.potential+" • "+p.age+" lat",12));
+            TextView price=bold("Wartość: "+money(p.value),15);price.setTextColor(LIME);card.addView(price);
+            card.addView(button("ZŁÓŻ OFERTĘ  •  "+money((int)(p.value*1.12)),()->{
+                int fee=(int)(p.value*1.12);
+                if(cash<fee){toast("Za mały budżet na tę ofertę.");return;}
+                new android.app.AlertDialog.Builder(this).setTitle("Negocjacje transferowe").setMessage("Klub zaakceptuje ofertę "+money(fee)+" za "+p.name+"?").setNegativeButton("Anuluj",null).setPositiveButton("Złóż ofertę",(d,w)->{
+                    cash-=fee;currentSquad().add(p);if(!activeSquad.isEmpty())activeSquad.add(p);addNews("Nowy zawodnik: "+p.name+" dołącza do "+club+" za "+money(fee)+".");save();careerDb.recordTransfer(p.name,club,fee,"IN");showTransfers();
+                }).show();
+            },true));
+        }
+        root.addView(button("Sprzedaj zawodnika z listy",this::showSellPlayer));
+        root.addView(button("Wróć",this::showHome));
+    }
+    void showSellPlayer() {
+        base("Sprzedaż zawodnika");
+        ArrayList<Player> players=currentSquad();
+        for(Player p:new ArrayList<>(players))root.addView(button(p.name+" • oferta "+money((int)(p.value*.85)),()->{
+            if(players.size()<=11){toast("Zostaw co najmniej 11 zawodników w kadrze.");return;}
+            players.remove(p); if(!activeSquad.isEmpty())activeSquad.remove(p);int fee=(int)(p.value*.85);cash+=fee;addNews(p.name+" odchodzi z klubu za "+money(fee)+".");save();careerDb.recordTransfer(p.name,club,fee,"OUT");showTransfers();
+        }));
+        root.addView(button("Wróć",this::showTransfers));
+    }
+    void showDevelopment() {
+        base("Rozwój zawodników");
+        root.addView(text("Poziom zaplecza treningowego: "+trainingLevel,16));
+        root.addView(text("Koszt sesji treningowej: 50 000 zł • morale może wzrosnąć.",13));
+        root.addView(button("Przeprowadź trening zespołu",()->{
+            if(cash<50000){toast("Brakuje środków na trening.");return;}
+            cash-=50000;trainingLevel++;morale=Math.min(100,morale+4);
+            ArrayList<Player> ps=currentSquad();Player best=null;for(Player p:ps)if(p.rating<p.potential&&(best==null||p.rating>best.rating))best=p;
+            if(best!=null){best.rating++;best.value=(int)(best.value*1.08);addNews(best.name+" poprawia ocenę ogólną po treningu.");}
+            else addNews("Zespół odbył intensywny trening.");save();careerDb.saveCareer(club,cash,played,points,morale,formation,seasonDay);showDevelopment();
+        },true));
+        for(Player p:currentSquad()) {LinearLayout c=panel();c.addView(bold(p.name+" • "+p.position,15));c.addView(muted("OVR "+p.rating+" / POT "+p.potential+" • wiek "+p.age,12));}
+        root.addView(button("Wróć",this::showHome));
+    }
+    void showScouting() {
+        base("Skauting");
+        root.addView(text("Obserwuj kandydatów na transfery. Raport pokazuje potencjał i szacowaną wartość.",13));
+        String[] names={"M. Adamski","I. Maj","A. Nowicki","K. Baran","P. Kamińska","D. Wrona","T. Krupa","O. Zając"};
+        for(int i=0;i<names.length;i++){final int idx=i;root.addView(button(names[i]+"  •  raport skauta",()->{
+            String[] pos={"PS","N","ŚP","ŚO","BR","LS","ŚPD","PO"};int rating=62+random.nextInt(17),pot=Math.min(99,rating+5+random.nextInt(15)),age=17+random.nextInt(12),value=300000+random.nextInt(3500000);
+            new android.app.AlertDialog.Builder(this).setTitle("Raport skautingowy").setMessage(names[idx]+"\nPozycja: "+pos[idx]+"\nOcena: "+rating+" • potencjał: "+pot+"\nWiek: "+age+"\nSzacowana wartość: "+money(value)+"\n\nRaport symulowany — nie jest to potwierdzony rekord zewnętrznej bazy.").setPositiveButton("Dodaj do obserwowanych",(d,w)->{addNews("Skaut obserwuje zawodnika "+names[idx]+".");careerDb.recordScout(names[idx],pos[idx],rating,pot,value);toast("Dodano raport do bazy kariery.");}).setNegativeButton("Zamknij",null).show();
+        }));}
+        root.addView(button("Wróć",this::showHome));
+    }
+    void showMorale() {
+        base("Morale i szatnia");
+        LinearLayout p=panel();p.addView(bold("ATMOSFERA W ZESPOLE",18));TextView score=bold(morale+"/100",32);score.setTextColor(morale>=70?LIME:(morale>=45?Color.YELLOW:Color.RED));p.addView(score);
+        p.addView(muted(morale>=80?"Świetna atmosfera. Zespół jest zmotywowany.":morale>=60?"Dobra atmosfera, ale utrzymuj regularność wyników.":morale>=40?"Napięcie w szatni rośnie. Przyda się rozmowa z zespołem.":"Kryzys morale. Zadbaj o wyniki i odpoczynek.",13));
+        root.addView(button("Spotkanie motywacyjne (+8 morale, koszt 20 000 zł)",()->{if(cash<20000){toast("Brak środków.");return;}cash-=20000;morale=Math.min(100,morale+8);addNews("Trener przeprowadził spotkanie motywacyjne.");save();showMorale();},true));
+        root.addView(button("Dzień regeneracji (+5 morale)",()->{morale=Math.min(100,morale+5);addNews("Zespół odbył dzień regeneracji.");save();showMorale();}));
+        root.addView(button("Wróć",this::showHome));
+    }
+    void showNews() {
+        base("Wiadomości sportowe");
+        if(careerNews.isEmpty()){root.addView(text("Na razie spokojny dzień w klubie. Zagraj mecz, przeprowadź trening lub wykonaj transfer, aby pojawiły się wiadomości.",14));}
+        for(String n:careerNews){LinearLayout c=panel();c.addView(muted("FOOTBALL EMPIRE • WIADOMOŚCI KLUBOWE",10));c.addView(bold(n,15));}
+        root.addView(button("Wróć",this::showHome));
+    }
+    void showCalendar() {
+        base("Kalendarz sezonu");
+        root.addView(muted("Terminarz kariery • tydzień "+Math.max(1,seasonDay/7),12));
+        for(int i=0;i<fixtureResults.size();i++){LinearLayout c=panel();c.addView(muted("ROZEGRANE SPOTKANIE",10));c.addView(bold(fixtureResults.get(i),14));}
+        for(int i=0;i<5;i++){int n=i+1;LinearLayout c=panel();c.addView(muted("ZA "+(n*7)+" DNI • KOLEJKA "+(played+n),10));c.addView(bold(club+" vs "+clubs[(played+n)%clubs.length],15));c.addView(muted("Planowany termin • wynik zostanie zapisany po rozegraniu",11));}
+        root.addView(button("Rozegraj następny mecz",this::chooseMatch,true));root.addView(button("Wróć",this::showHome));
+    }
+    void showSaves() {
+        base("Zapisy kariery i baza danych");
+        root.addView(text("Kariera zapisywana automatycznie na urządzeniu. Możesz też zapisać punkt kontrolny do jednego z trzech slotów.",13));
+        for(int i=1;i<=3;i++){final int slot=i;root.addView(button("Zapisz karierę — slot "+i,()->{
+            try{JSONObject j=new JSONObject();j.put("club",club);j.put("cash",cash);j.put("played",played);j.put("wins",wins);j.put("draws",draws);j.put("losses",losses);j.put("points",points);j.put("gf",goalsFor);j.put("ga",goalsAgainst);j.put("morale",morale);j.put("formation",formation);j.put("seasonDay",seasonDay);j.put("logo",clubLogo);prefs.edit().putString("save_slot_"+slot,j.toString()).apply();careerDb.saveCareer(club,cash,played,points,morale,formation,seasonDay);toast("Zapisano karierę w slocie "+slot);}
+            catch(Exception e){toast("Nie udało się zapisać kariery.");}
+        },true));String stored=prefs.getString("save_slot_"+i,"");if(!stored.isEmpty())root.addView(button("Wczytaj slot "+i,()->loadSaveSlot(slot)));}
+        root.addView(muted("SQLite: "+careerDb.getReadableDatabase().getPath(),10));
+        root.addView(button("Rozpocznij nową karierę",this::resetCareer));
+        root.addView(button("Wróć",this::showHome));
+    }
+    void loadSaveSlot(int slot) {
+        try{JSONObject j=new JSONObject(prefs.getString("save_slot_"+slot,""));club=j.optString("club","Real Madrid");cash=j.optInt("cash",5000000);played=j.optInt("played",0);wins=j.optInt("wins",0);draws=j.optInt("draws",0);losses=j.optInt("losses",0);points=j.optInt("points",0);goalsFor=j.optInt("gf",0);goalsAgainst=j.optInt("ga",0);morale=j.optInt("morale",72);formation=j.optString("formation","4-3-3");seasonDay=j.optInt("seasonDay",1);clubLogo=j.optString("logo","");save();showHome();toast("Wczytano slot "+slot);}catch(Exception e){toast("Zapis jest uszkodzony.");}
+    }
+
     void resetCareer() {
         new android.app.AlertDialog.Builder(this).setTitle("Nowa kariera").setMessage("Usunąć zapis i rozpocząć od początku?")
             .setNegativeButton("Anuluj",(d,w)->{}).setPositiveButton("Resetuj",(d,w)->{
