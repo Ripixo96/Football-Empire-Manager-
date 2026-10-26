@@ -70,7 +70,7 @@ public sealed class FootballEmpireBootstrap : MonoBehaviour
         contentLayout.padding = new RectOffset(0, 0, 8, 8);
         var fitter = content.gameObject.AddComponent<ContentSizeFitter>();
         fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        var nav = new GameObject("Navigation", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        var nav = new GameObject("Navigation", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
         nav.transform.SetParent(root.transform, false);
         nav.GetComponent<LayoutElement>().preferredHeight = 100;
         var navLayout = nav.GetComponent<HorizontalLayoutGroup>();
