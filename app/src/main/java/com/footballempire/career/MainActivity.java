@@ -83,13 +83,15 @@ public class MainActivity extends Activity {
         losses=prefs.getInt("losses",0); points=prefs.getInt("points",0);
         goalsFor=prefs.getInt("gf",0); goalsAgainst=prefs.getInt("ga",0); cash=prefs.getInt("cash",5000000);
         club=prefs.getString("club","Real Madrid"); clubLogo=prefs.getString("club_logo","");
+        String roster=prefs.getString("active_squad",""); if(!roster.isEmpty())try{JSONArray a=new JSONArray(roster);for(int i=0;i<a.length();i++){JSONObject p=a.getJSONObject(i);activeSquad.add(new Player(p.optString("name","Zawodnik"),p.optString("position","?"),p.optInt("rating",60),p.optInt("potential",65),p.optInt("age",20),p.optInt("value",0)));}}catch(Exception ignored){}
     }
+    String serializeSquad() { JSONArray a=new JSONArray(); try{for(Player p:activeSquad){JSONObject j=new JSONObject();j.put("name",p.name);j.put("position",p.position);j.put("rating",p.rating);j.put("potential",p.potential);j.put("age",p.age);j.put("value",p.value);a.put(j);}}catch(Exception ignored){}return a.toString(); }
     void loadStringList(String key, ArrayList<String> out) { try { JSONArray a=new JSONArray(prefs.getString(key,"[]")); for(int i=0;i<a.length();i++)out.add(a.getString(i)); } catch(Exception ignored){} }
     void saveLists() { prefs.edit().putString("news",new JSONArray(careerNews).toString()).putString("fixtures",new JSONArray(fixtureResults).toString()).apply(); }
     void addNews(String item) { careerNews.add(0,"Dzień "+seasonDay+" • "+item); while(careerNews.size()>50)careerNews.remove(careerNews.size()-1); saveLists(); }
     void save() {
         prefs.edit().putInt("played",played).putInt("wins",wins).putInt("draws",draws).putInt("losses",losses)
-            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).putString("club_logo",clubLogo).putString("formation",formation).putInt("morale",morale).putInt("training_level",trainingLevel).putInt("season_day",seasonDay).apply();
+            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).putString("club_logo",clubLogo).putString("formation",formation).putInt("morale",morale).putInt("training_level",trainingLevel).putInt("season_day",seasonDay).putString("active_squad",serializeSquad()).apply();
     }
     static final int BG = Color.rgb(8,13,25), SURFACE = Color.rgb(18,27,45), SURFACE2 = Color.rgb(25,37,58);
     static final int MUTED = Color.rgb(157,172,194), LIME = Color.rgb(194,255,82), BORDER = Color.rgb(43,59,82);
@@ -431,7 +433,7 @@ public class MainActivity extends Activity {
                     result.add(new Player(name,pos,rating,potential,age,value));
                 }
                 ui.post(()->{
-                    activeSquad.clear();activeSquad.addAll(result);club=teamName;save();showSquad();
+                    activeSquad.clear();activeSquad.addAll(result);careerDb.replacePlayers(teamName,result);club=teamName;save();showSquad();
                     toast("Wczytano "+result.size()+" zawodników. Brakujące oceny/potencjał są szacowane.");
                 });
             }catch(Exception e){ui.post(()->{base("Błąd kadry");root.addView(text(e.getMessage(),13));root.addView(button("Wróć do bazy",this::showWorldDatabase));});}
@@ -673,7 +675,7 @@ public class MainActivity extends Activity {
                 int fee=(int)(p.value*1.12);
                 if(cash<fee){toast("Za mały budżet na tę ofertę.");return;}
                 new android.app.AlertDialog.Builder(this).setTitle("Negocjacje transferowe").setMessage("Klub zaakceptuje ofertę "+money(fee)+" za "+p.name+"?").setNegativeButton("Anuluj",null).setPositiveButton("Złóż ofertę",(d,w)->{
-                    cash-=fee;currentSquad().add(p);if(!activeSquad.isEmpty())activeSquad.add(p);addNews("Nowy zawodnik: "+p.name+" dołącza do "+club+" za "+money(fee)+".");save();careerDb.recordTransfer(p.name,club,fee,"IN");showTransfers();
+                    cash-=fee;if(activeSquad.isEmpty())activeSquad.addAll(Arrays.asList(squad));activeSquad.add(p);addNews("Nowy zawodnik: "+p.name+" dołącza do "+club+" za "+money(fee)+".");save();careerDb.recordTransfer(p.name,club,fee,"IN");showTransfers();
                 }).show();
             },true));
         }
