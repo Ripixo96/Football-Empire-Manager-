@@ -39,6 +39,20 @@ public class CareerDatabase extends SQLiteOpenHelper {
         getWritableDatabase().insert("career_saves", null, v);
     }
 
+    public void replacePlayers(String club, java.util.List<MainActivity.Player> players) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("players", "club=?", new String[]{club});
+            for (MainActivity.Player p : players) {
+                ContentValues v = new ContentValues(); v.put("name", p.name); v.put("club", club); v.put("position", p.position);
+                v.put("age", p.age); v.put("rating", p.rating); v.put("potential", p.potential); v.put("market_value", p.value);
+                db.insert("players", null, v);
+            }
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
+    }
+
     public void recordMatch(String home, String away, int homeScore, int awayScore, int seasonDay) {
         ContentValues v = new ContentValues();
         v.put("home", home); v.put("away", away); v.put("home_score", homeScore); v.put("away_score", awayScore);
