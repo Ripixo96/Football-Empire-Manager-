@@ -547,7 +547,10 @@ public class MainActivity extends Activity {
         Match m=simulate(opponent);
         played++; goalsFor+=m.home; goalsAgainst+=m.away;
         if(m.home>m.away){wins++;points+=3;cash+=250000;} else if(m.home==m.away){draws++;points++;cash+=100000;} else {losses++;cash+=50000;}
-        lastMatch=m; seasonDay+=7; morale=Math.max(15,Math.min(100,m.home>m.away?morale+5:(m.home==m.away?morale+1:morale-7)));\n        addNews(m.homeName+" "+m.home+":"+m.away+" "+m.awayName+" — "+(m.home>m.away?"zwycięstwo":(m.home==m.away?"remis":"porażka"))+".");\n        fixtureResults.add("Dzień "+seasonDay+" • "+m.homeName+" "+m.home+":"+m.away+" "+m.awayName); saveLists();\n        careerDb.recordMatch(m.homeName,m.awayName,m.home,m.away,seasonDay); save();
+        lastMatch=m; seasonDay+=7; morale=Math.max(15,Math.min(100,m.home>m.away?morale+5:(m.home==m.away?morale+1:morale-7)));
+        addNews(m.homeName+" "+m.home+":"+m.away+" "+m.awayName+" — "+(m.home>m.away?"zwycięstwo":(m.home==m.away?"remis":"porażka"))+".");
+        fixtureResults.add("Dzień "+seasonDay+" • "+m.homeName+" "+m.home+":"+m.away+" "+m.awayName); saveLists();
+        careerDb.recordMatch(m.homeName,m.awayName,m.home,m.away,seasonDay); save();
         if(animate) show2D(m); else showResult(m);
     }
     void showResult(Match m) {
