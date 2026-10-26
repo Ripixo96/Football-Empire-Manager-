@@ -67,6 +67,9 @@ var footer_label: Label
 
 func _ready() -> void:
 	rng.randomize()
+	careerDb = preload("res://scripts/career_database.gd").new()
+	careerDb.name = "CareerDatabase"
+	add_child(careerDb)
 	_build_shell()
 	if not _load_career():
 		show_club_select()
