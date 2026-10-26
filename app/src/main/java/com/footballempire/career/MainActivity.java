@@ -272,17 +272,17 @@ public class MainActivity extends Activity {
         root.addView(text("Łączę z GOAL API i pobieram katalog rozgrywek…",15));
         apiExecutor.execute(()->{
             try {
-                JSONObject response=apiGet("/leagues?limit=100&offset=0");
+                JSONObject response=apiGet("/leagues?limit=40&offset=0");
                 JSONArray a=dataArray(response); ArrayList<JSONObject> result=new ArrayList<>();
                 for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
                 JSONObject pagination=response.optJSONObject("pagination");
-                boolean more=pagination!=null&&pagination.optBoolean("hasMore",false);
-                ui.post(()->{worldLeagues.clear();worldLeagues.addAll(result);leaguesMore=more;showWorldDatabase();toast("Pobrano "+worldLeagues.size()+" lig/rozgrywek.");});
+                boolean more=false;
+                ui.post(()->{worldLeagues.clear();worldLeagues.addAll(result);leaguesMore=false;showWorldDatabase();toast("Wczytano maksymalnie 40 rozgrywek. Katalog jest celowo ograniczony.");});
             } catch(Exception e){ui.post(()->{showWorldDatabase();toast("Nie udało się pobrać lig: "+e.getMessage());});}
         });
     }
     void renderWorldLeagues() {
-        TextView heading=bold("ROZGRYWKI ("+worldLeagues.size()+")",13);heading.setTextColor(LIME);root.addView(heading);
+        TextView heading=bold("WYBRANE ROZGRYWKI ("+worldLeagues.size()+"/40)",13);heading.setTextColor(LIME);root.addView(heading);\n        root.addView(muted("Lista jest ograniczona do 40 pozycji, żeby nie zaśmiecać kariery tysiącem rozgrywek.",11));
         for(JSONObject league:worldLeagues) {
             String name=league.optString("name","Nieznana liga");
             String country=league.optString("countryName",league.optString("country",""));
@@ -297,7 +297,7 @@ public class MainActivity extends Activity {
         apiExecutor.execute(()->{
             try {
                 int offset=worldLeagues.size();
-                JSONObject response=apiGet("/leagues?limit=100&offset="+offset);
+                JSONObject response=apiGet("/leagues?limit=40&offset="+offset);
                 JSONArray a=dataArray(response);ArrayList<JSONObject> result=new ArrayList<>();
                 for(int i=0;i<a.length();i++)result.add(a.getJSONObject(i));
                 JSONObject pagination=response.optJSONObject("pagination");
