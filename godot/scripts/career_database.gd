@@ -1,55 +1,81 @@
 extends Node
-class_name CareerDatabase
+## Local structured career database implemented with Godot's built-in JSON/FileAccess APIs.
+## This keeps the project dependency-free; it can be migrated to SQLite later.
 
-var db: SQLite
-var ready := false
+const DB_PATH := "user://football_empire_database.json"
+var data: Dictionary = {
+	"career_saves": [],
+	"matches": [],
+	"transfers": [],
+	"scouting_reports": [],
+	"clubs": [],
+	"competitions": [],
+	"players": [],
+	"fixtures": [],
+	"training": [],
+	"club_news": []
+}
 
 func _ready() -> void:
-	db = SQLite.new()
-	db.path = "user://football_empire.db"
-	if db.open_db():
-		ready = true
-		_create_tables()
+	load_database()
 
-func _create_tables() -> void:
-	for sql in [
-		"CREATE TABLE IF NOT EXISTS career_saves (id INTEGER PRIMARY KEY, club TEXT, season INTEGER, week INTEGER, budget INTEGER, points INTEGER, payload TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)",
-		"CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY AUTOINCREMENT, season INTEGER, round_no INTEGER, home TEXT, away TEXT, home_goals INTEGER, away_goals INTEGER, points_after INTEGER)",
-		"CREATE TABLE IF NOT EXISTS transfers (id INTEGER PRIMARY KEY AUTOINCREMENT, club TEXT, player TEXT, direction TEXT, fee INTEGER, week INTEGER)",
-		"CREATE TABLE IF NOT EXISTS scouting_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, region TEXT, report TEXT, week INTEGER)",
-		"CREATE TABLE IF NOT EXISTS clubs (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, competition TEXT, rating INTEGER)",
-		"CREATE TABLE IF NOT EXISTS competitions (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, country TEXT)",
-		"CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, club TEXT, position TEXT, age INTEGER, overall INTEGER, potential INTEGER, value INTEGER, wage INTEGER)",
-		"CREATE TABLE IF NOT EXISTS fixtures (id INTEGER PRIMARY KEY AUTOINCREMENT, season INTEGER, round_no INTEGER, home TEXT, away TEXT, score TEXT, played INTEGER)",
-		"CREATE TABLE IF NOT EXISTS training (id INTEGER PRIMARY KEY AUTOINCREMENT, player TEXT, focus TEXT, week INTEGER, improvement INTEGER)",
-		"CREATE TABLE IF NOT EXISTS club_news (id INTEGER PRIMARY KEY AUTOINCREMENT, week INTEGER, headline TEXT)"
-	]:
-		db.query(sql)
+func load_database() -> void:
+	if not FileAccess.file_exists(DB_PATH):
+		save_database()
+		return
+	var file := FileAccess.open(DB_PATH, FileAccess.READ)
+	if file == null:
+		return
+	var parsed = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) == TYPE_DICTIONARY:
+		for key in data.keys():
+			if parsed.has(key) and typeof(parsed[key]) == TYPE_ARRAY:
+				data[key] = parsed[key]
 
-func saveCareer(id:int,club:String,season:int,week:int,budget:int,points:int,payload:String) -> void:
-	if not ready: return
-	db.query_with_bindings("INSERT OR REPLACE INTO career_saves(id,club,season,week,budget,points,payload,updated_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",[id,club,season,week,budget,points,payload])
+func save_database() -> void:
+	var file := FileAccess.open(DB_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
 
-func recordMatch(season:int,round_no:int,home:String,away:String,hg:int,ag:int,points:int) -> void:
-	if ready: db.query_with_bindings("INSERT INTO matches(season,round_no,home,away,home_goals,away_goals,points_after) VALUES(?,?,?,?,?,?,?)",[season,round_no,home,away,hg,ag,points])
+func saveCareer(id: int, club: String, season: int, week: int, budget: int, points: int, payload: String) -> void:
+	var row := {"id": id, "club": club, "season": season, "week": week, "budget": budget, "points": points, "payload": payload}
+	_upsert("career_saves", "id", row)
 
-func recordTransfer(club:String,player:String,direction:String,fee:int,week:int) -> void:
-	if ready: db.query_with_bindings("INSERT INTO transfers(club,player,direction,fee,week) VALUES(?,?,?,?,?)",[club,player,direction,fee,week])
+func recordMatch(season: int, round_no: int, home: String, away: String, hg: int, ag: int, points: int) -> void:
+	data.matches.append({"season":season,"round":round_no,"home":home,"away":away,"home_goals":hg,"away_goals":ag,"points_after":points})
+	save_database()
 
-func recordScout(region:String,report:String,week:int) -> void:
-	if ready: db.query_with_bindings("INSERT INTO scouting_reports(region,report,week) VALUES(?,?,?)",[region,report,week])
+func recordTransfer(club: String, player: String, direction: String, fee: int, week: int) -> void:
+	data.transfers.append({"club":club,"player":player,"direction":direction,"fee":fee,"week":week})
+	save_database()
 
-func recordCompetition(name:String,country:String) -> void:
-	if ready: db.query_with_bindings("INSERT OR IGNORE INTO competitions(name,country) VALUES(?,?)",[name,country])
+func recordScout(region: String, report: String, week: int) -> void:
+	data.scouting_reports.append({"region":region,"report":report,"week":week})
+	save_database()
 
-func recordClub(name:String,competition:String,rating:int) -> void:
-	if ready: db.query_with_bindings("INSERT OR IGNORE INTO clubs(name,competition,rating) VALUES(?,?,?)",[name,competition,rating])
+func recordCompetition(name: String, country: String) -> void:
+	for item in data.competitions:
+		if item.get("name","") == name:
+			return
+	data.competitions.append({"name":name,"country":country})
+	save_database()
 
-func replacePlayers(rows:Array) -> void:
-	if not ready: return
-	db.query("DELETE FROM players")
-	for p in rows:
-		db.query_with_bindings("INSERT INTO players(name,club,position,age,overall,potential,value,wage) VALUES(?,?,?,?,?,?,?,?)",[p.get("name",""),p.get("club",""),p.get("position",""),p.get("age",18),p.get("overall",50),p.get("potential",60),p.get("value",0),p.get("wage",0)])
+func recordClub(name: String, competition: String, rating: int) -> void:
+	for item in data.clubs:
+		if item.get("name","") == name:
+			return
+	data.clubs.append({"name":name,"competition":competition,"rating":rating})
+	save_database()
 
-func _exit_tree() -> void:
-	if db and ready: db.close_db()
+func replacePlayers(rows: Array) -> void:
+	data.players = rows.duplicate(true)
+	save_database()
+
+func _upsert(table: String, key: String, row: Dictionary) -> void:
+	for i in range(data[table].size()):
+		if str(data[table][i].get(key,"")) == str(row.get(key,"")):
+			data[table][i] = row
+			save_database()
+			return
+	data[table].append(row)
+	save_database()
