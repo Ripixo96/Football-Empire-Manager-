@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
     SharedPreferences prefs;
     int played, wins, draws, losses, points, goalsFor, goalsAgainst, cash;
     String club = "Real Madrid";
+    String clubLogo = "";
     String[] clubs = {"Real Madrid", "FC Barcelona", "Manchester City", "Bayern München", "Legia Warszawa"};
     final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
     final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -73,11 +74,11 @@ public class MainActivity extends Activity {
         played=prefs.getInt("played",0); wins=prefs.getInt("wins",0); draws=prefs.getInt("draws",0);
         losses=prefs.getInt("losses",0); points=prefs.getInt("points",0);
         goalsFor=prefs.getInt("gf",0); goalsAgainst=prefs.getInt("ga",0); cash=prefs.getInt("cash",5000000);
-        club=prefs.getString("club","Real Madrid");
+        club=prefs.getString("club","Real Madrid"); clubLogo=prefs.getString("club_logo","");
     }
     void save() {
         prefs.edit().putInt("played",played).putInt("wins",wins).putInt("draws",draws).putInt("losses",losses)
-            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).apply();
+            .putInt("points",points).putInt("gf",goalsFor).putInt("ga",goalsAgainst).putInt("cash",cash).putString("club",club).putString("club_logo",clubLogo).apply();
     }
     static final int BG = Color.rgb(8,13,25), SURFACE = Color.rgb(18,27,45), SURFACE2 = Color.rgb(25,37,58);
     static final int MUTED = Color.rgb(157,172,194), LIME = Color.rgb(194,255,82), BORDER = Color.rgb(43,59,82);
@@ -142,9 +143,7 @@ public class MainActivity extends Activity {
         budgetCol.addView(muted("BUDŻET TRANSFEROWY",10));
         TextView budget=bold(money(cash),23); budget.setTextColor(LIME); budgetCol.addView(budget);
         budgetRow.addView(budgetCol,new LinearLayout.LayoutParams(0,-2,1));
-        TextView badge=bold(initials(club),21); badge.setGravity(android.view.Gravity.CENTER);
-        badge.setTextColor(LIME); badge.setBackground(shape(Color.rgb(8,19,29),LIME,18));
-        budgetRow.addView(badge,new LinearLayout.LayoutParams(dp(66),dp(66)));
+        if(!clubLogo.isEmpty()) { ImageView badge=new ImageView(this);badge.setScaleType(ImageView.ScaleType.FIT_CENTER);badge.setPadding(dp(5),dp(5),dp(5),dp(5));badge.setBackground(shape(Color.rgb(8,19,29),LIME,18));budgetRow.addView(badge,new LinearLayout.LayoutParams(dp(66),dp(66)));loadCrest(badge,clubLogo); } else { TextView badge=bold(initials(club),21);badge.setGravity(android.view.Gravity.CENTER);badge.setTextColor(LIME);badge.setBackground(shape(Color.rgb(8,19,29),LIME,18));budgetRow.addView(badge,new LinearLayout.LayoutParams(dp(66),dp(66))); }
         hero.addView(budgetRow);
 
         TextView section=bold("SEZON W LICZBACH",12); section.setTextColor(MUTED); root.addView(section);
@@ -167,8 +166,7 @@ public class MainActivity extends Activity {
         LinearLayout versus=new LinearLayout(this); versus.setGravity(android.view.Gravity.CENTER_VERTICAL);
         versus.setPadding(0,dp(17),0,dp(17));
         LinearLayout left=new LinearLayout(this); left.setOrientation(LinearLayout.VERTICAL); left.setGravity(android.view.Gravity.CENTER);
-        TextView homeBadge=bold(initials(club),22); homeBadge.setGravity(android.view.Gravity.CENTER); homeBadge.setTextColor(LIME);
-        homeBadge.setBackground(shape(Color.rgb(8,19,29),BORDER,16)); left.addView(homeBadge,new LinearLayout.LayoutParams(dp(62),dp(62)));
+        if(!clubLogo.isEmpty()) { ImageView homeBadge=new ImageView(this);homeBadge.setScaleType(ImageView.ScaleType.FIT_CENTER);homeBadge.setPadding(dp(5),dp(5),dp(5),dp(5));homeBadge.setBackground(shape(Color.rgb(8,19,29),BORDER,16));left.addView(homeBadge,new LinearLayout.LayoutParams(dp(62),dp(62)));loadCrest(homeBadge,clubLogo); } else { TextView homeBadge=bold(initials(club),22);homeBadge.setGravity(android.view.Gravity.CENTER);homeBadge.setTextColor(LIME);homeBadge.setBackground(shape(Color.rgb(8,19,29),BORDER,16));left.addView(homeBadge,new LinearLayout.LayoutParams(dp(62),dp(62))); }
         TextView homeName=bold(club,12); homeName.setGravity(android.view.Gravity.CENTER); homeName.setMaxLines(2); left.addView(homeName);
         versus.addView(left,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout center=new LinearLayout(this); center.setOrientation(LinearLayout.VERTICAL); center.setGravity(android.view.Gravity.CENTER);
@@ -244,6 +242,59 @@ public class MainActivity extends Activity {
         }
         return new JSONArray();
     }
+
+    String logoUrl(JSONObject item) {
+        if(item==null)return "";
+        String[] keys={"logoUrl","logo_url","logo","crestUrl","crest_url","crest","emblem","badge","imageUrl","image_url","image"};
+        for(String key:keys) {
+            Object value=item.opt(key);
+            if(value instanceof String) {
+                String u=((String)value).trim();
+                if(u.startsWith("https://")||u.startsWith("http://"))return u;
+            } else if(value instanceof JSONObject) {
+                JSONObject o=(JSONObject)value;
+                for(String nested:new String[]{"url","src","href","original","large"}) {
+                    String u=o.optString(nested,"").trim();
+                    if(u.startsWith("https://")||u.startsWith("http://"))return u;
+                }
+            }
+        }
+        JSONObject nested=item.optJSONObject("team");
+        if(nested!=null)return logoUrl(nested);
+        nested=item.optJSONObject("competition");
+        if(nested!=null)return logoUrl(nested);
+        return "";
+    }
+    void loadCrest(ImageView view,String url) {
+        if(url==null||url.trim().isEmpty())return;
+        view.setTag(url);
+        new Thread(()->{
+            android.graphics.Bitmap bitmap=null;
+            try {
+                HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
+                c.setConnectTimeout(8000);c.setReadTimeout(10000);c.setInstanceFollowRedirects(true);
+                c.setRequestProperty("User-Agent","FootballEmpire/1.0");
+                try(InputStream in=c.getInputStream()){bitmap=android.graphics.BitmapFactory.decodeStream(in);}
+                c.disconnect();
+            }catch(Exception ignored){}
+            final android.graphics.Bitmap result=bitmap;
+            ui.post(()->{if(result!=null&&url.equals(view.getTag()))view.setImageBitmap(result);});
+        }).start();
+    }
+    void addLogoRow(String title,String subtitle,String logo,Runnable action) {
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(7),dp(10),dp(7));
+        row.setBackground(shape(SURFACE,BORDER,13));row.setClickable(true);row.setFocusable(true);row.setOnClickListener(v->action.run());
+        ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setPadding(dp(3),dp(3),dp(3),dp(3));image.setBackground(shape(SURFACE2,0,10));
+        row.addView(image,new LinearLayout.LayoutParams(dp(48),dp(48)));loadCrest(image,logo);
+        LinearLayout labels=new LinearLayout(this);labels.setOrientation(LinearLayout.VERTICAL);labels.setPadding(dp(12),0,0,0);
+        labels.addView(bold(title,14));if(subtitle!=null&&!subtitle.isEmpty())labels.addView(muted(subtitle,10));
+        row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+        TextView arrow=bold("›",25);arrow.setTextColor(LIME);row.addView(arrow);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=dp(7);root.addView(row,lp);
+    }
+
     void showWorldDatabase() {
         base("Baza światowa");
         LinearLayout api=panel();
@@ -287,8 +338,7 @@ public class MainActivity extends Activity {
             String name=league.optString("name","Nieznana liga");
             String country=league.optString("countryName",league.optString("country",""));
             String id=league.optString("id",league.optString("apiId",""));
-            String label=name+(country.isEmpty()?"":"  •  "+country);
-            root.addView(button(label,()->loadWorldTeams(id,name)));
+            addLogoRow(name,country,logoUrl(league),()->loadWorldTeams(id,name));
         }
         if(leaguesMore) root.addView(button("Wczytaj kolejne ligi świata  →",()->loadMoreLeagues()));
     }
@@ -328,7 +378,7 @@ public class MainActivity extends Activity {
                         String id=team.optString("id",team.optString("apiId",""));
                         String name=team.optString("name",team.optString("teamName","Klub"));
                         String country=team.optString("countryName","");
-                        root.addView(button(name+(country.isEmpty()?"":" • "+country),()->loadWorldTeamSquad(id,name)));
+                        addLogoRow(name,country,logoUrl(team),()->loadWorldTeamSquad(id,name,logoUrl(team)));
                     }
                     if(teamsMore)root.addView(button("Wczytaj kolejne kluby  →",()->loadWorldTeamsPage(worldTeams.size(),true)));
                     root.addView(button("← Wróć do lig",this::showWorldDatabase));
@@ -336,7 +386,9 @@ public class MainActivity extends Activity {
             }catch(Exception e){ui.post(()->{base("Błąd bazy");root.addView(text(e.getMessage(),13));root.addView(button("Wróć",this::showWorldDatabase));});}
         });
     }
-    void loadWorldTeamSquad(String teamId,String teamName) {
+    void loadWorldTeamSquad(String teamId,String teamName) { loadWorldTeamSquad(teamId,teamName,""); }
+    void loadWorldTeamSquad(String teamId,String teamName,String teamLogo) {
+        clubLogo=teamLogo==null?"":teamLogo;
         base("Kadra / "+teamName);root.addView(text("Pobieram zawodników klubu…",14));
         apiExecutor.execute(()->{
             try {
