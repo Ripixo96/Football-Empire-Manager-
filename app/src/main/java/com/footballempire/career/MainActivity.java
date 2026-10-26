@@ -745,21 +745,22 @@ public class MainActivity extends Activity {
         base("Zapisy kariery i baza danych");
         root.addView(text("Kariera zapisywana automatycznie na urządzeniu. Możesz też zapisać punkt kontrolny do jednego z trzech slotów.",13));
         for(int i=1;i<=3;i++){final int slot=i;root.addView(button("Zapisz karierę — slot "+i,()->{
-            try{JSONObject j=new JSONObject();j.put("club",club);j.put("cash",cash);j.put("played",played);j.put("wins",wins);j.put("draws",draws);j.put("losses",losses);j.put("points",points);j.put("gf",goalsFor);j.put("ga",goalsAgainst);j.put("morale",morale);j.put("formation",formation);j.put("seasonDay",seasonDay);j.put("logo",clubLogo);prefs.edit().putString("save_slot_"+slot,j.toString()).apply();careerDb.saveCareer(club,cash,played,points,morale,formation,seasonDay);toast("Zapisano karierę w slocie "+slot);}
+            try{JSONObject j=new JSONObject();j.put("club",club);j.put("cash",cash);j.put("played",played);j.put("wins",wins);j.put("draws",draws);j.put("losses",losses);j.put("points",points);j.put("gf",goalsFor);j.put("ga",goalsAgainst);j.put("morale",morale);j.put("formation",formation);j.put("seasonDay",seasonDay);j.put("logo",clubLogo);j.put("roster",serializeSquad());j.put("news",new JSONArray(careerNews).toString());j.put("fixtures",new JSONArray(fixtureResults).toString());prefs.edit().putString("save_slot_"+slot,j.toString()).apply();careerDb.saveCareer(club,cash,played,points,morale,formation,seasonDay);toast("Zapisano karierę w slocie "+slot);}
             catch(Exception e){toast("Nie udało się zapisać kariery.");}
         },true));String stored=prefs.getString("save_slot_"+i,"");if(!stored.isEmpty())root.addView(button("Wczytaj slot "+i,()->loadSaveSlot(slot)));}
         root.addView(muted("SQLite: "+careerDb.getReadableDatabase().getPath(),10));
         root.addView(button("Rozpocznij nową karierę",this::resetCareer));
         root.addView(button("Wróć",this::showHome));
     }
+    void loadJsonList(String json,ArrayList<String> out){try{JSONArray a=new JSONArray(json);for(int i=0;i<a.length();i++)out.add(a.getString(i));}catch(Exception ignored){}}
     void loadSaveSlot(int slot) {
-        try{JSONObject j=new JSONObject(prefs.getString("save_slot_"+slot,""));club=j.optString("club","Real Madrid");cash=j.optInt("cash",5000000);played=j.optInt("played",0);wins=j.optInt("wins",0);draws=j.optInt("draws",0);losses=j.optInt("losses",0);points=j.optInt("points",0);goalsFor=j.optInt("gf",0);goalsAgainst=j.optInt("ga",0);morale=j.optInt("morale",72);formation=j.optString("formation","4-3-3");seasonDay=j.optInt("seasonDay",1);clubLogo=j.optString("logo","");save();showHome();toast("Wczytano slot "+slot);}catch(Exception e){toast("Zapis jest uszkodzony.");}
+        try{JSONObject j=new JSONObject(prefs.getString("save_slot_"+slot,""));club=j.optString("club","Real Madrid");cash=j.optInt("cash",5000000);played=j.optInt("played",0);wins=j.optInt("wins",0);draws=j.optInt("draws",0);losses=j.optInt("losses",0);points=j.optInt("points",0);goalsFor=j.optInt("gf",0);goalsAgainst=j.optInt("ga",0);morale=j.optInt("morale",72);formation=j.optString("formation","4-3-3");seasonDay=j.optInt("seasonDay",1);clubLogo=j.optString("logo","");activeSquad.clear();String roster=j.optString("roster","");if(!roster.isEmpty()){JSONArray a=new JSONArray(roster);for(int i=0;i<a.length();i++){JSONObject p=a.getJSONObject(i);activeSquad.add(new Player(p.optString("name","Zawodnik"),p.optString("position","?"),p.optInt("rating",60),p.optInt("potential",65),p.optInt("age",20),p.optInt("value",0)));}}careerNews.clear();loadJsonList(j.optString("news","[]"),careerNews);fixtureResults.clear();loadJsonList(j.optString("fixtures","[]"),fixtureResults);save();showHome();toast("Wczytano slot "+slot);}catch(Exception e){toast("Zapis jest uszkodzony.");}
     }
 
     void resetCareer() {
         new android.app.AlertDialog.Builder(this).setTitle("Nowa kariera").setMessage("Usunąć zapis i rozpocząć od początku?")
             .setNegativeButton("Anuluj",(d,w)->{}).setPositiveButton("Resetuj",(d,w)->{
-                prefs.edit().clear().apply();load();lastMatch=null;showHome();
+                prefs.edit().clear().apply();activeSquad.clear();careerNews.clear();fixtureResults.clear();load();lastMatch=null;formation="4-3-3";morale=72;trainingLevel=1;seasonDay=1;showHome();
             }).show();
     }
 }
