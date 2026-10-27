@@ -6,14 +6,12 @@ PlayerSettings:
   serializedVersion: 28
   productGUID: 00000000000000000000000000000000
   AndroidProfiler: 0
-  companyName: Ripixo96
+  companyName: Football Empire Studio
   productName: Football Empire
   defaultScreenOrientation: 1
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: Football Empire Studio
-  productName: Football Empire
   applicationIdentifier:
     Android: pl.football.empire
   AndroidBundleVersionCode: 1
