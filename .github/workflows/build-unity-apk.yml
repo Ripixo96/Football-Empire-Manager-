@@ -1,0 +1,45 @@
+name: Build Football Empire Unity Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "Assets/**"
+      - "Packages/**"
+      - "ProjectSettings/**"
+      - ".github/workflows/build-unity-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build Android APK with Unity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Build Unity Android APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: .
+          unityVersion: 6000.3.27f1
+          targetPlatform: Android
+          androidAppBundle: false
+          buildsPath: build
+          buildName: FootballEmpire.apk
+          allowDirtyBuild: true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Football-Empire-Unity-Android-APK
+          path: build/Android/FootballEmpire.apk
+          if-no-files-found: error
+          retention-days: 14
