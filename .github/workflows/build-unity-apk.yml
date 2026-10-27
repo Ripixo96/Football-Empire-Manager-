@@ -3,7 +3,7 @@ name: Build Football Empire Unity APK
 on:
   workflow_dispatch:
   push:
-    branches: [ unity-rebuild ]
+    branches: [ unity-rebuild, unity-from-scratch ]
     paths:
       - 'Assets/**'
       - 'Packages/**'
